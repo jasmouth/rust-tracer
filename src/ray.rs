@@ -1,13 +1,13 @@
-use na::Vector3;
+use na::Vector3 as Vec3;
 
 #[derive(Copy, Clone)]
 pub struct Ray {
-	pub origin: Vector3<f64>,
-	pub direction: Vector3<f64>
+	pub origin: Vec3<f64>,
+	pub direction: Vec3<f64>
 }
 
 impl Ray {
-	pub fn point_at_param(&self, t: f64) -> Vector3<f64> {
+	pub fn point_at_param(&self, t: f64) -> Vec3<f64> {
 		self.origin + t * self.direction
 	}
 }
