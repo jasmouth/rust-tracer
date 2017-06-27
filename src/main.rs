@@ -2,11 +2,14 @@
 
 extern crate image;
 extern crate nalgebra as na;
+extern crate rand;
 
 pub mod ray;
+pub mod camera;
 pub mod hitable;
 
 use na::{Vector3 as Vec3, Unit};
+use rand::distributions::{IndependentSample, Range};
 use std::fs::File;
 use std::path::Path;
 use std::f64::MAX as FLOAT_MAX;
@@ -16,6 +19,7 @@ use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
 use hitable::hitable_list::HitableList;
 use ray::Ray;
+use camera::Camera;
 
 fn get_color(ray: &Ray, world: &HitableList) -> Vec3<f64> {
     let ref mut rec = HitRecord::new();
@@ -31,12 +35,11 @@ fn get_color(ray: &Ray, world: &HitableList) -> Vec3<f64> {
 fn main() {
     let numX = 200;
     let numY = 100;
+    let numSamples = 100;
+    let range = Range::new(0f64, 1.0);
+    let mut rng = rand::thread_rng();
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
-
-    let lowerLeftCorner = Vec3::new(-2.0, -1.0, -1.0);
-    let horizontal = Vec3::new(4.0, 0.0, 0.0);
-    let vertical = Vec3::new(0.0, 2.0, 0.0);
-    let origin = Vec3::new(0.0, 0.0, 0.0);
+    let camera = Camera::new();
     let world = HitableList {
         list: vec![Box::new(Sphere {
                        center: Vec3::new(0.0, 0.0, -1.0),
@@ -50,13 +53,14 @@ fn main() {
 
     for y in 0..numY {
         for x in 0..numX {
-            let u = (x as f64) / (numX as f64);
-            let v = (y as f64) / (numY as f64);
-            let ray = Ray {
-                origin: origin,
-                direction: lowerLeftCorner + u * horizontal + v * vertical,
-            };
-            let color = get_color(&ray, &world);
+            let mut color = Vec3::new(0.0, 0.0, 0.0);
+            for _ in 0..numSamples {
+                let u = (x as f64 + range.ind_sample(&mut rng)) / (numX as f64);
+                let v = (y as f64 + range.ind_sample(&mut rng)) / (numY as f64);
+                let ray = camera.create_ray(u, v);
+                color += get_color(&ray, &world);
+            }
+            color /= (numSamples as f64);
             let pixel = image::Rgb([(color.x * 255.99) as u8,
                                     (color.y * 255.99) as u8,
                                     (color.z * 255.99) as u8]);
