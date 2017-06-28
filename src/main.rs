@@ -8,7 +8,7 @@ pub mod ray;
 pub mod camera;
 pub mod hitable;
 
-use na::{Vector3 as Vec3, Unit};
+use na::{Vector3 as Vec3, Unit, dot};
 use rand::distributions::{IndependentSample, Range};
 use std::fs::File;
 use std::path::Path;
@@ -21,10 +21,33 @@ use hitable::hitable_list::HitableList;
 use ray::Ray;
 use camera::Camera;
 
+fn random_point_in_unit_sphere() -> Vec3<f64> {
+    let range = Range::new(0f64, 1.0);
+    let mut rng = rand::thread_rng();
+    let mut p;
+    loop {
+        p = 2.0 *
+            Vec3::new(range.ind_sample(&mut rng),
+                      range.ind_sample(&mut rng),
+                      range.ind_sample(&mut rng)) - Vec3::new(1.0, 1.0, 1.0);
+        if dot(&p, &p) < 1.0 {
+            break;
+        }
+    }
+
+    p
+}
+
 fn get_color(ray: &Ray, world: &HitableList) -> Vec3<f64> {
     let ref mut rec = HitRecord::new();
-    if world.hit(ray, 0.0, FLOAT_MAX, rec) {
-        return 0.5 * Vec3::new(rec.normal.x + 1.0, rec.normal.y + 1.0, rec.normal.z + 1.0);
+    if world.hit(ray, 0.0001, FLOAT_MAX, rec) {
+        let target = rec.hit_point + rec.normal + random_point_in_unit_sphere();
+        return 0.5 *
+               get_color(&Ray {
+                             origin: rec.hit_point,
+                             direction: target - rec.hit_point,
+                         },
+                         world);
     } else {
         let unit_direction = Unit::new_normalize(ray.direction).unwrap();
         let t = 0.5 * (unit_direction.y + 1.0);
@@ -60,10 +83,10 @@ fn main() {
                 let ray = camera.create_ray(u, v);
                 color += get_color(&ray, &world);
             }
-            color /= (numSamples as f64);
-            let pixel = image::Rgb([(color.x * 255.99) as u8,
-                                    (color.y * 255.99) as u8,
-                                    (color.z * 255.99) as u8]);
+            color /= numSamples as f64;
+            let pixel = image::Rgb([(color.x.sqrt() * 255.99) as u8,
+                                    (color.y.sqrt() * 255.99) as u8,
+                                    (color.z.sqrt() * 255.99) as u8]);
             // Invert y coordinate
             imgBuff.put_pixel(x, (numY - 1) - y, pixel);
         }
