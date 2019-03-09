@@ -1,6 +1,6 @@
-use ray::Ray;
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
+use ray::Ray;
 
 pub struct HitableList {
     pub list: Vec<Box<Hitable>>,
