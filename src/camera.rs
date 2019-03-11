@@ -1,12 +1,11 @@
-use na::Vector3 as Vec3;
-
 use ray::Ray;
+use vec3::Vec3;
 
 pub struct Camera {
-    pub lower_left_corner: Vec3<f64>,
-    pub horizontal: Vec3<f64>,
-    pub vertical: Vec3<f64>,
-    pub origin: Vec3<f64>,
+    pub lower_left_corner: Vec3,
+    pub horizontal: Vec3,
+    pub vertical: Vec3,
+    pub origin: Vec3,
 }
 
 impl Camera {
@@ -22,7 +21,7 @@ impl Camera {
     pub fn create_ray(&self, u: f64, v: f64) -> Ray {
         Ray {
             origin: self.origin,
-            direction: self.lower_left_corner + u * self.horizontal + v * self.vertical
+            direction: self.lower_left_corner + (u * self.horizontal) + (v * self.vertical)
                 - self.origin,
         }
     }

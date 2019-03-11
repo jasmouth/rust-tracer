@@ -5,5 +5,4 @@ authors = ["jasmouth <jasmith21h@gmail.com>"]
 
 [dependencies]
 image = "0.13.0"
-nalgebra = "0.12.3"
 rand = "0.3.15"

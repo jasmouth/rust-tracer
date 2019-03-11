@@ -1,11 +1,10 @@
-use na::{dot, Vector3 as Vec3};
-
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
 use ray::Ray;
+use vec3::{dot, Vec3};
 
 pub struct Sphere {
-    pub center: Vec3<f64>,
+    pub center: Vec3,
     pub radius: f64,
 }
 

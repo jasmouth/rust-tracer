@@ -1,14 +1,13 @@
 #![allow(non_snake_case)]
 
 extern crate image;
-extern crate nalgebra as na;
 extern crate rand;
 
 pub mod camera;
 pub mod hitable;
 pub mod ray;
+pub mod vec3;
 
-use na::{dot, Unit, Vector3 as Vec3};
 use rand::distributions::{IndependentSample, Range};
 use std::f64::MAX as FLOAT_MAX;
 use std::fs::File;
@@ -20,27 +19,28 @@ use hitable::hitable::Hitable;
 use hitable::hitable_list::HitableList;
 use hitable::sphere::Sphere;
 use ray::Ray;
+use vec3::{dot, unit_vector, Vec3};
 
-fn random_point_in_unit_sphere() -> Vec3<f64> {
+fn random_point_in_unit_sphere() -> Vec3 {
     let range = Range::new(0f64, 1.0);
     let mut rng = rand::thread_rng();
-    let mut p;
+    let mut point;
     loop {
-        p =
+        point =
             2.0 * Vec3::new(
                 range.ind_sample(&mut rng),
                 range.ind_sample(&mut rng),
                 range.ind_sample(&mut rng),
             ) - Vec3::new(1.0, 1.0, 1.0);
-        if dot(&p, &p) < 1.0 {
+        if dot(&point, &point) < 1.0 {
             break;
         }
     }
 
-    p
+    point
 }
 
-fn get_color(ray: &Ray, world: &HitableList) -> Vec3<f64> {
+fn get_color(ray: &Ray, world: &HitableList) -> Vec3 {
     let ref mut rec = HitRecord::new();
     if world.hit(ray, 0.0001, FLOAT_MAX, rec) {
         let target = rec.hit_point + rec.normal + random_point_in_unit_sphere();
@@ -53,8 +53,10 @@ fn get_color(ray: &Ray, world: &HitableList) -> Vec3<f64> {
                 world,
             );
     } else {
-        let unit_direction = Unit::new_normalize(ray.direction).unwrap();
-        let t = 0.5 * (unit_direction.y + 1.0);
+        let unit_direction = unit_vector(ray.direction);
+        // println!("unit_direction: {:?} | ray.direction: {:?} | ray length: {}", unit_direction, ray.direction, ray.direction.length());
+        let t = 0.5 * (unit_direction.y() + 1.0);
+        // println!("get_color returning: {:?}", (1.0 - t) * Vec3::new(1.0, 1.0, 1.0) + t * Vec3::new(0.5, 0.7, 1.0));
         return (1.0 - t) * Vec3::new(1.0, 1.0, 1.0) + t * Vec3::new(0.5, 0.7, 1.0);
     }
 }
@@ -63,6 +65,7 @@ fn main() {
     let numX = 200;
     let numY = 100;
     let numSamples = 100;
+    // let numSamples = 2;
     let range = Range::new(0f64, 1.0);
     let mut rng = rand::thread_rng();
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
@@ -87,13 +90,15 @@ fn main() {
                 let u = (x as f64 + range.ind_sample(&mut rng)) / (numX as f64);
                 let v = (y as f64 + range.ind_sample(&mut rng)) / (numY as f64);
                 let ray = camera.create_ray(u, v);
+                // println!("Color Vector before get_color: {:?}", color);
                 color += get_color(&ray, &world);
+                // println!("Color Vector after get_color: {:?}", color);
             }
             color /= numSamples as f64;
             let pixel = image::Rgb([
-                (color.x.sqrt() * 255.99) as u8,
-                (color.y.sqrt() * 255.99) as u8,
-                (color.z.sqrt() * 255.99) as u8,
+                (color.x().sqrt() * 255.99) as u8,
+                (color.y().sqrt() * 255.99) as u8,
+                (color.z().sqrt() * 255.99) as u8,
             ]);
             // Invert y coordinate
             imgBuff.put_pixel(x, (numY - 1) - y, pixel);
