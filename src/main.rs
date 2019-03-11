@@ -54,9 +54,7 @@ fn get_color(ray: &Ray, world: &HitableList) -> Vec3 {
             );
     } else {
         let unit_direction = unit_vector(ray.direction);
-        // println!("unit_direction: {:?} | ray.direction: {:?} | ray length: {}", unit_direction, ray.direction, ray.direction.length());
         let t = 0.5 * (unit_direction.y() + 1.0);
-        // println!("get_color returning: {:?}", (1.0 - t) * Vec3::new(1.0, 1.0, 1.0) + t * Vec3::new(0.5, 0.7, 1.0));
         return (1.0 - t) * Vec3::new(1.0, 1.0, 1.0) + t * Vec3::new(0.5, 0.7, 1.0);
     }
 }
@@ -65,7 +63,6 @@ fn main() {
     let numX = 200;
     let numY = 100;
     let numSamples = 100;
-    // let numSamples = 2;
     let range = Range::new(0f64, 1.0);
     let mut rng = rand::thread_rng();
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
@@ -90,9 +87,7 @@ fn main() {
                 let u = (x as f64 + range.ind_sample(&mut rng)) / (numX as f64);
                 let v = (y as f64 + range.ind_sample(&mut rng)) / (numY as f64);
                 let ray = camera.create_ray(u, v);
-                // println!("Color Vector before get_color: {:?}", color);
                 color += get_color(&ray, &world);
-                // println!("Color Vector after get_color: {:?}", color);
             }
             color /= numSamples as f64;
             let pixel = image::Rgb([
