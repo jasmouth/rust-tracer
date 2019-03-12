@@ -8,7 +8,7 @@ pub mod hitable;
 pub mod ray;
 pub mod vec3;
 
-use rand::distributions::{IndependentSample, Range};
+use rand::distributions::{Distribution, Uniform};
 use std::f64::MAX as FLOAT_MAX;
 use std::fs::File;
 use std::path::Path;
@@ -22,15 +22,15 @@ use ray::Ray;
 use vec3::{dot, unit_vector, Vec3};
 
 fn random_point_in_unit_sphere() -> Vec3 {
-    let range = Range::new(0f64, 1.0);
+    let range = Uniform::new_inclusive(0.0, 1.0);
     let mut rng = rand::thread_rng();
     let mut point;
     loop {
         point =
             2.0 * Vec3::new(
-                range.ind_sample(&mut rng),
-                range.ind_sample(&mut rng),
-                range.ind_sample(&mut rng),
+                range.sample(&mut rng),
+                range.sample(&mut rng),
+                range.sample(&mut rng),
             ) - Vec3::new(1.0, 1.0, 1.0);
         if dot(&point, &point) < 1.0 {
             break;
@@ -63,7 +63,7 @@ fn main() {
     let numX = 200;
     let numY = 100;
     let numSamples = 100;
-    let range = Range::new(0f64, 1.0);
+    let range = Uniform::new_inclusive(0.0, 1.0);
     let mut rng = rand::thread_rng();
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
     let camera = Camera::new();
@@ -84,8 +84,8 @@ fn main() {
         for x in 0..numX {
             let mut color = Vec3::new(0.0, 0.0, 0.0);
             for _ in 0..numSamples {
-                let u = (x as f64 + range.ind_sample(&mut rng)) / (numX as f64);
-                let v = (y as f64 + range.ind_sample(&mut rng)) / (numY as f64);
+                let u = (x as f64 + range.sample(&mut rng)) / (numX as f64);
+                let v = (y as f64 + range.sample(&mut rng)) / (numY as f64);
                 let ray = camera.create_ray(u, v);
                 color += get_color(&ray, &world);
             }
@@ -100,6 +100,11 @@ fn main() {
         }
     }
 
-    let ref mut fout = File::create(&Path::new("output.png")).unwrap();
-    let _ = image::ImageRgb8(imgBuff).save(fout, image::PNG);
+    let path = &Path::new("output.png");
+    match File::create(path) {
+        Ok(_) => {
+            let _ = image::ImageRgb8(imgBuff).save(path);
+        }
+        Err(e) => println!("Failed to open file: {:?}", e),
+    }
 }
