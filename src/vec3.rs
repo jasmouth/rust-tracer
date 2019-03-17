@@ -10,6 +10,7 @@ use std::ops::Neg;
 use std::ops::Sub;
 use std::ops::SubAssign;
 
+/// A simple three-element vector
 #[derive(Copy, Clone, Debug)]
 pub struct Vec3 {
     pub e: [f64; 3],
@@ -20,6 +21,7 @@ impl Vec3 {
         Vec3 { e: [e0, e1, e2] }
     }
 
+    /// Converts the vector into a unit-length version of itself
     pub fn make_unit_vector(&mut self) {
         let k = 1.0_f64
             / (self.e[0] * self.e[0] + self.e[1] * self.e[1] + self.e[2] * self.e[2]).sqrt();
@@ -28,10 +30,12 @@ impl Vec3 {
         self.e[2] *= k;
     }
 
+    /// Calculates the length of the vector
     pub fn length(&self) -> f64 {
         (self.e[0] * self.e[0] + self.e[1] * self.e[1] + self.e[2] * self.e[2]).sqrt()
     }
 
+    /// Calculates the (squared) length of the vector
     pub fn squared_length(&self) -> f64 {
         (self.e[0] * self.e[0] + self.e[1] * self.e[1] + self.e[2] * self.e[2])
     }
@@ -61,14 +65,17 @@ impl Vec3 {
     }
 }
 
+/// Creates a new unit-length vector from the given vector
 pub fn unit_vector(v: Vec3) -> Vec3 {
     v / v.length()
 }
 
+/// Calculates the dot-product of two vectors
 pub fn dot(v1: &Vec3, v2: &Vec3) -> f64 {
     (v1.x() * v2.x()) + (v1.y() * v2.y()) + (v1.z() * v2.z())
 }
 
+/// Creates a new vector representing the cross product of the two given vectors.
 pub fn cross(v1: &Vec3, v2: &Vec3) -> Vec3 {
     Vec3::new(
         v1.y() * v2.z() - v1.z() * v2.y(),

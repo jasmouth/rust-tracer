@@ -17,41 +17,31 @@ use camera::Camera;
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
 use hitable::hitable_list::HitableList;
+use hitable::materials::{Lambertian, Metal};
 use hitable::sphere::Sphere;
 use ray::Ray;
-use vec3::{dot, unit_vector, Vec3};
+use vec3::{unit_vector, Vec3};
 
-fn random_point_in_unit_sphere() -> Vec3 {
-    let range = Uniform::new_inclusive(0.0, 1.0);
-    let mut rng = rand::thread_rng();
-    let mut point;
-    loop {
-        point =
-            2.0 * Vec3::new(
-                range.sample(&mut rng),
-                range.sample(&mut rng),
-                range.sample(&mut rng),
-            ) - Vec3::new(1.0, 1.0, 1.0);
-        if dot(&point, &point) < 1.0 {
-            break;
-        }
-    }
-
-    point
-}
-
-fn get_color(ray: &Ray, world: &HitableList) -> Vec3 {
+/// Calculates a final color value for a given Ray
+fn get_color(ray: &Ray, world: &HitableList, depth: i32) -> Vec3 {
     let ref mut rec = HitRecord::new();
     if world.hit(ray, 0.0001, FLOAT_MAX, rec) {
-        let target = rec.hit_point + rec.normal + random_point_in_unit_sphere();
-        return 0.5
-            * get_color(
-                &Ray {
-                    origin: rec.hit_point,
-                    direction: target - rec.hit_point,
+        let (scatteredRay, attenuation, didScatter) = match rec.material {
+            Some(ref mat) => mat.scatter(ray, rec),
+            None => (
+                Ray {
+                    origin: ray.origin,
+                    direction: ray.direction,
                 },
-                world,
-            );
+                Vec3::new(0.0, 0.0, 0.0),
+                false,
+            ),
+        };
+        if depth < 50 && didScatter {
+            return attenuation * get_color(&scatteredRay, world, depth + 1);
+        } else {
+            return Vec3::new(0.0, 0.0, 0.0);
+        }
     } else {
         let unit_direction = unit_vector(ray.direction);
         let t = 0.5 * (unit_direction.y() + 1.0);
@@ -72,10 +62,26 @@ fn main() {
             Box::new(Sphere {
                 center: Vec3::new(0.0, 0.0, -1.0),
                 radius: 0.5,
+                material: Box::new(Lambertian {
+                    albedo: Vec3::new(0.8, 0.3, 0.3),
+                }),
             }),
             Box::new(Sphere {
                 center: Vec3::new(0.0, -100.5, -1.0),
                 radius: 100.0,
+                material: Box::new(Lambertian {
+                    albedo: Vec3::new(0.8, 0.8, 0.0),
+                }),
+            }),
+            Box::new(Sphere {
+                center: Vec3::new(1.0, 0.0, -1.0),
+                radius: 0.5,
+                material: Box::new(Metal::new(Vec3::new(0.8, 0.6, 0.2), 0.6)),
+            }),
+            Box::new(Sphere {
+                center: Vec3::new(-1.0, 0.0, -1.0),
+                radius: 0.5,
+                material: Box::new(Metal::new(Vec3::new(0.8, 0.8, 0.8), 0.15)),
             }),
         ],
     };
@@ -87,7 +93,7 @@ fn main() {
                 let u = (x as f64 + range.sample(&mut rng)) / (numX as f64);
                 let v = (y as f64 + range.sample(&mut rng)) / (numY as f64);
                 let ray = camera.create_ray(u, v);
-                color += get_color(&ray, &world);
+                color += get_color(&ray, &world, 0);
             }
             color /= numSamples as f64;
             let pixel = image::Rgb([

@@ -1,11 +1,14 @@
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
+use hitable::materials::Material;
 use ray::Ray;
+use std::clone::Clone;
 use vec3::{dot, Vec3};
 
 pub struct Sphere {
     pub center: Vec3,
     pub radius: f64,
+    pub material: Box<Material>,
 }
 
 impl Hitable for Sphere {
@@ -21,6 +24,7 @@ impl Hitable for Sphere {
                 rec.t = temp;
                 rec.hit_point = ray.point_at_param(rec.t);
                 rec.normal = (rec.hit_point - self.center) / self.radius;
+                rec.material = Some(self.material.clone());
                 return true;
             }
             temp = (-b + discriminant.sqrt()) / a;
@@ -28,6 +32,7 @@ impl Hitable for Sphere {
                 rec.t = temp;
                 rec.hit_point = ray.point_at_param(rec.t);
                 rec.normal = (rec.hit_point - self.center) / self.radius;
+                rec.material = Some(self.material.clone());
                 return true;
             }
             return false;
