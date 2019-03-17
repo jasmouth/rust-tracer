@@ -17,7 +17,7 @@ use camera::Camera;
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
 use hitable::hitable_list::HitableList;
-use hitable::materials::{Lambertian, Metal};
+use hitable::materials::{Dielectric, Lambertian, Metal};
 use hitable::sphere::Sphere;
 use ray::Ray;
 use vec3::{unit_vector, Vec3};
@@ -76,7 +76,7 @@ fn main() {
             Box::new(Sphere {
                 center: Vec3::new(1.0, 0.0, -1.0),
                 radius: 0.5,
-                material: Box::new(Metal::new(Vec3::new(0.8, 0.6, 0.2), 0.6)),
+                material: Box::new(Dielectric::new(1.5)),
             }),
             Box::new(Sphere {
                 center: Vec3::new(-1.0, 0.0, -1.0),
