@@ -56,7 +56,13 @@ fn main() {
     let range = Uniform::new_inclusive(0.0, 1.0);
     let mut rng = rand::thread_rng();
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
-    let camera = Camera::new();
+    let camera = Camera::new(
+        Vec3::new(1.5, 1.8, -3.0),
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        30.0,
+        numX as f64 / numY as f64,
+    );
     let world = HitableList {
         list: vec![
             Box::new(Sphere {
