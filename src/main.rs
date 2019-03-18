@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+#![allow(dead_code)]
 
 extern crate image;
 extern crate rand;
@@ -17,7 +18,7 @@ use camera::Camera;
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
 use hitable::hitable_list::HitableList;
-use hitable::materials::{Dielectric, Lambertian, Metal};
+use hitable::materials::{Dielectric, Lambertian, Material, Metal};
 use hitable::sphere::Sphere;
 use ray::Ray;
 use vec3::{unit_vector, Vec3};
@@ -49,52 +50,104 @@ fn get_color(ray: &Ray, world: &HitableList, depth: i32) -> Vec3 {
     }
 }
 
+fn create_rand_scene(
+    mut rng: rand::prelude::ThreadRng,
+    range: &rand::distributions::Uniform<f64>,
+) -> HitableList {
+    let mut sphere_list = vec![Box::new(Sphere {
+        center: Vec3::new(0.0, -1000.0, 0.0),
+        radius: 1000.0,
+        material: Box::new(Lambertian {
+            albedo: Vec3::new(0.5, 0.5, 0.5),
+        }),
+    }) as Box<Hitable>];
+
+    for a in -11..11 {
+        for b in -11..11 {
+            let material_choice = range.sample(&mut rng);
+            let center = Vec3::new(
+                a as f64 + 0.9 * range.sample(&mut rng),
+                0.2,
+                b as f64 + 0.9 * range.sample(&mut rng),
+            );
+            if (center - Vec3::new(4.0, 0.2, 0.0)).length() <= 0.9 {
+                continue;
+            }
+            let material: Box<Material>;
+            if material_choice < 0.75 {
+                // Matte
+                material = Box::new(Lambertian {
+                    albedo: Vec3::new(
+                        range.sample(&mut rng) * range.sample(&mut rng),
+                        range.sample(&mut rng) * range.sample(&mut rng),
+                        range.sample(&mut rng) * range.sample(&mut rng),
+                    ),
+                });
+            } else if material_choice < 0.9 {
+                // Metal
+                material = Box::new(Metal::new(
+                    Vec3::new(
+                        0.5 * (1.0 + range.sample(&mut rng)),
+                        0.5 * (1.0 + range.sample(&mut rng)),
+                        0.5 * (1.0 + range.sample(&mut rng)),
+                    ),
+                    0.5 * range.sample(&mut rng),
+                ));
+            } else if material_choice < 0.95 {
+                // Glass
+                material = Box::new(Dielectric::new(1.5));
+            } else {
+                // Diamond
+                material = Box::new(Dielectric::new(2.4));
+            }
+            sphere_list.push(Box::new(Sphere {
+                center,
+                radius: 0.2,
+                material,
+            }));
+        }
+    }
+
+    sphere_list.push(Box::new(Sphere {
+        center: Vec3::new(0.0, 1.0, 0.0),
+        radius: 1.0,
+        material: Box::new(Dielectric::new(1.5)),
+    }));
+    sphere_list.push(Box::new(Sphere {
+        center: Vec3::new(-4.0, 1.0, 0.0),
+        radius: 1.0,
+        material: Box::new(Lambertian {
+            albedo: Vec3::new(0.4, 0.2, 0.1),
+        }),
+    }));
+    sphere_list.push(Box::new(Sphere {
+        center: Vec3::new(4.0, 1.0, 0.0),
+        radius: 1.0,
+        material: Box::new(Metal::new(Vec3::new(0.7, 0.6, 0.5), 0.0)),
+    }));
+
+    HitableList { list: sphere_list }
+}
+
 fn main() {
-    let numX = 200;
-    let numY = 100;
+    let numX = 1200;
+    let numY = 800;
     let numSamples = 100;
     let range = Uniform::new_inclusive(0.0, 1.0);
     let mut rng = rand::thread_rng();
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
-    let look_from = Vec3::new(1.5, 1.8, -3.0);
-    let look_at = Vec3::new(0.0, 0.0, -1.0);
+    let look_from = Vec3::new(13.0,2.0,3.0);
+    let look_at = Vec3::new(0.0, 0.0, 0.0);
     let camera = Camera::new(
         look_from,
         look_at,
         Vec3::new(0.0, 1.0, 0.0),
-        30.0,
+        20.0,
         numX as f64 / numY as f64,
-        1.0,
+        0.1,
         (look_from - look_at).length(),
     );
-    let world = HitableList {
-        list: vec![
-            Box::new(Sphere {
-                center: Vec3::new(0.0, 0.0, -1.0),
-                radius: 0.5,
-                material: Box::new(Lambertian {
-                    albedo: Vec3::new(0.8, 0.3, 0.3),
-                }),
-            }),
-            Box::new(Sphere {
-                center: Vec3::new(0.0, -100.5, -1.0),
-                radius: 100.0,
-                material: Box::new(Lambertian {
-                    albedo: Vec3::new(0.8, 0.8, 0.0),
-                }),
-            }),
-            Box::new(Sphere {
-                center: Vec3::new(1.0, 0.0, -1.0),
-                radius: 0.5,
-                material: Box::new(Dielectric::new(1.5)),
-            }),
-            Box::new(Sphere {
-                center: Vec3::new(-1.0, 0.0, -1.0),
-                radius: 0.5,
-                material: Box::new(Metal::new(Vec3::new(0.8, 0.8, 0.8), 0.15)),
-            }),
-        ],
-    };
+    let world = create_rand_scene(rand::thread_rng(), &range);
 
     for y in 0..numY {
         for x in 0..numX {
