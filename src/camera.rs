@@ -1,11 +1,15 @@
+use hitable::utils;
 use ray::Ray;
 use vec3::{cross, unit_vector, Vec3};
 
 pub struct Camera {
+    pub lens_radius: f64,
     pub lower_left_corner: Vec3,
     pub horizontal: Vec3,
-    pub vertical: Vec3,
     pub origin: Vec3,
+    pub vertical: Vec3,
+    pub u: Vec3,
+    pub v: Vec3,
 }
 
 impl Camera {
@@ -22,6 +26,8 @@ impl Camera {
         view_up: Vec3,
         vert_fov: f64,
         aspect_ratio: f64,
+        aperture: f64,
+        focus_distance: f64,
     ) -> Self {
         let theta = vert_fov * std::f64::consts::PI / 180.0;
         let half_height = (theta / 2.0).tan();
@@ -30,18 +36,27 @@ impl Camera {
         let u = unit_vector(cross(&view_up, &w));
         let v = cross(&w, &u);
         Camera {
-            lower_left_corner: look_from - (half_width * u) - (half_height * v) - w,
-            horizontal: 2.0 * half_width * u,
-            vertical: 2.0 * half_height * v,
+            lens_radius: aperture / 2.0,
+            lower_left_corner: look_from
+                - (half_width * focus_distance * u)
+                - (half_height * focus_distance * v)
+                - (focus_distance * w),
+            horizontal: 2.0 * half_width * focus_distance * u,
+            vertical: 2.0 * half_height * focus_distance * v,
             origin: look_from,
+            u,
+            v,
         }
     }
 
-    pub fn create_ray(&self, u: f64, v: f64) -> Ray {
+    pub fn create_ray(&self, x: f64, y: f64) -> Ray {
+        let rand_point = self.lens_radius * utils::random_point_in_unit_disk();
+        let offset = (self.u * rand_point.x()) + (self.v * rand_point.y());
         Ray {
-            origin: self.origin,
-            direction: self.lower_left_corner + (u * self.horizontal) + (v * self.vertical)
-                - self.origin,
+            origin: self.origin + offset,
+            direction: self.lower_left_corner + (x * self.horizontal) + (y * self.vertical)
+                - self.origin
+                - offset,
         }
     }
 }

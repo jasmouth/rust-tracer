@@ -56,12 +56,16 @@ fn main() {
     let range = Uniform::new_inclusive(0.0, 1.0);
     let mut rng = rand::thread_rng();
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
+    let look_from = Vec3::new(1.5, 1.8, -3.0);
+    let look_at = Vec3::new(0.0, 0.0, -1.0);
     let camera = Camera::new(
-        Vec3::new(1.5, 1.8, -3.0),
-        Vec3::new(0.0, 0.0, -1.0),
+        look_from,
+        look_at,
         Vec3::new(0.0, 1.0, 0.0),
         30.0,
         numX as f64 / numY as f64,
+        1.0,
+        (look_from - look_at).length(),
     );
     let world = HitableList {
         list: vec![
