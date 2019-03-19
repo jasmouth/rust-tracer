@@ -2,9 +2,10 @@ use hitable::hit_record::HitRecord;
 use hitable::utils;
 use rand::distributions::{Distribution, Uniform};
 use ray::Ray;
+use std::marker::{Send, Sync};
 use vec3::{dot, unit_vector, Vec3};
 
-pub trait Material {
+pub trait Material: Send + Sync {
     /// Scatters a given ray; that is, a new ray is created that represents how the input ray
     /// would be scattered upon impact with the material.
     /// #### Returns
@@ -89,7 +90,7 @@ impl Material for Metal {
 }
 
 /// A surface that splits a light ray into both a refracted and reflected ray (e.g. glass, water, etc.).
-/// 
+///
 /// Note that only one ray is generated per interaction; the choice between reflected and refracted
 /// is chosen randomly.
 #[derive(Copy, Clone, Debug)]

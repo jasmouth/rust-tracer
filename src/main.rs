@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-#![allow(dead_code)]
 
 extern crate image;
 extern crate rand;
@@ -13,6 +12,8 @@ use rand::distributions::{Distribution, Uniform};
 use std::f64::MAX as FLOAT_MAX;
 use std::fs::File;
 use std::path::Path;
+use std::sync::Arc;
+use std::thread;
 
 use camera::Camera;
 use hitable::hit_record::HitRecord;
@@ -22,6 +23,8 @@ use hitable::materials::{Dielectric, Lambertian, Material, Metal};
 use hitable::sphere::Sphere;
 use ray::Ray;
 use vec3::{unit_vector, Vec3};
+
+static NUM_THREADS: i32 = 8;
 
 /// Calculates a final color value for a given Ray
 fn get_color(ray: &Ray, world: &HitableList, depth: i32) -> Vec3 {
@@ -46,7 +49,7 @@ fn get_color(ray: &Ray, world: &HitableList, depth: i32) -> Vec3 {
     } else {
         let unit_direction = unit_vector(ray.direction);
         let t = 0.5 * (unit_direction.y() + 1.0);
-        return (1.0 - t) * Vec3::new(1.0, 1.0, 1.0) + t * Vec3::new(0.5, 0.7, 1.0);
+        return (1.0 - t) * Vec3::new(1.0, 0.55, 0.0) + t * Vec3::new(0.2, 0.1, 0.5);
     }
 }
 
@@ -58,7 +61,7 @@ fn create_rand_scene(
         center: Vec3::new(0.0, -1000.0, 0.0),
         radius: 1000.0,
         material: Box::new(Lambertian {
-            albedo: Vec3::new(0.5, 0.5, 0.5),
+            albedo: Vec3::new(0.2, 0.2, 0.2),
         }),
     }) as Box<Hitable>];
 
@@ -70,7 +73,10 @@ fn create_rand_scene(
                 0.2,
                 b as f64 + 0.9 * range.sample(&mut rng),
             );
-            if (center - Vec3::new(4.0, 0.2, 0.0)).length() <= 0.9 {
+            if ((center - Vec3::new(4.0, 0.2, 0.0)).length() <= 0.9)
+                || ((center - Vec3::new(0.0, 0.2, 1.0)).length() <= 0.9)
+                || ((center - Vec3::new(2.0, 0.2, -2.0)).length() <= 0.9)
+            {
                 continue;
             }
             let material: Box<Material>;
@@ -109,21 +115,21 @@ fn create_rand_scene(
     }
 
     sphere_list.push(Box::new(Sphere {
-        center: Vec3::new(0.0, 1.0, 0.0),
+        center: Vec3::new(2.0, 1.0, -2.0),
         radius: 1.0,
         material: Box::new(Dielectric::new(1.5)),
     }));
     sphere_list.push(Box::new(Sphere {
-        center: Vec3::new(-4.0, 1.0, 0.0),
+        center: Vec3::new(0.0, 1.0, 1.0),
         radius: 1.0,
         material: Box::new(Lambertian {
-            albedo: Vec3::new(0.4, 0.2, 0.1),
+            albedo: Vec3::new(1.0, 1.0, 1.0),
         }),
     }));
     sphere_list.push(Box::new(Sphere {
         center: Vec3::new(4.0, 1.0, 0.0),
         radius: 1.0,
-        material: Box::new(Metal::new(Vec3::new(0.7, 0.6, 0.5), 0.0)),
+        material: Box::new(Metal::new(Vec3::new(0.5, 0.5, 0.5), 0.0)),
     }));
 
     HitableList { list: sphere_list }
@@ -134,35 +140,46 @@ fn main() {
     let numY = 800;
     let numSamples = 100;
     let range = Uniform::new_inclusive(0.0, 1.0);
-    let mut rng = rand::thread_rng();
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
-    let look_from = Vec3::new(13.0,2.0,3.0);
+    let look_from = Vec3::new(13.0, 2.5, 3.0);
     let look_at = Vec3::new(0.0, 0.0, 0.0);
     let camera = Camera::new(
         look_from,
         look_at,
         Vec3::new(0.0, 1.0, 0.0),
-        20.0,
+        30.0,
         numX as f64 / numY as f64,
         0.1,
-        (look_from - look_at).length(),
+        10.0,
     );
-    let world = create_rand_scene(rand::thread_rng(), &range);
+    let world = Arc::new(create_rand_scene(rand::thread_rng(), &range));
 
     for y in 0..numY {
         for x in 0..numX {
+            let mut child_threads = vec![];
             let mut color = Vec3::new(0.0, 0.0, 0.0);
-            for _ in 0..numSamples {
-                let u = (x as f64 + range.sample(&mut rng)) / (numX as f64);
-                let v = (y as f64 + range.sample(&mut rng)) / (numY as f64);
-                let ray = camera.create_ray(u, v);
-                color += get_color(&ray, &world, 0);
+            for _ in 0..NUM_THREADS {
+                let _world = Arc::clone(&world);
+                child_threads.push(thread::spawn(move || -> Vec3 {
+                    let mut _color = Vec3::new(0.0, 0.0, 0.0);
+                    let mut rng = rand::thread_rng();
+                    for _ in 0..(numSamples / NUM_THREADS) {
+                        let u = (x as f64 + range.sample(&mut rng)) / (numX as f64);
+                        let v = (y as f64 + range.sample(&mut rng)) / (numY as f64);
+                        let ray = camera.create_ray(u, v);
+                        _color += get_color(&ray, &_world, 0);
+                    }
+                    _color
+                }));
+            }
+            for thread in child_threads {
+                color += thread.join().unwrap();
             }
             color /= numSamples as f64;
             let pixel = image::Rgb([
-                (color.x().sqrt() * 255.99) as u8,
-                (color.y().sqrt() * 255.99) as u8,
-                (color.z().sqrt() * 255.99) as u8,
+                (color.r().sqrt() * 255.99) as u8,
+                (color.g().sqrt() * 255.99) as u8,
+                (color.b().sqrt() * 255.99) as u8,
             ]);
             // Invert y coordinate
             imgBuff.put_pixel(x, (numY - 1) - y, pixel);

@@ -2,7 +2,6 @@ use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
 use hitable::materials::Material;
 use ray::Ray;
-use std::clone::Clone;
 use vec3::{dot, Vec3};
 
 pub struct Sphere {

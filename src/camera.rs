@@ -2,6 +2,7 @@ use hitable::utils;
 use ray::Ray;
 use vec3::{cross, unit_vector, Vec3};
 
+#[derive(Copy, Clone)]
 pub struct Camera {
     pub lens_radius: f64,
     pub lower_left_corner: Vec3,
@@ -49,6 +50,7 @@ impl Camera {
         }
     }
 
+    /// Creates a new Ray directed at the given coordinates, originating from the Camera's origin
     pub fn create_ray(&self, x: f64, y: f64) -> Ray {
         let rand_point = self.lens_radius * utils::random_point_in_unit_disk();
         let offset = (self.u * rand_point.x()) + (self.v * rand_point.y());
