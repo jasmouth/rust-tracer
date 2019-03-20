@@ -1,6 +1,8 @@
 #![allow(non_snake_case)]
 
 extern crate image;
+extern crate indicatif;
+extern crate num_cpus;
 extern crate rand;
 
 pub mod camera;
@@ -8,12 +10,14 @@ pub mod hitable;
 pub mod ray;
 pub mod vec3;
 
+use indicatif::{FormattedDuration, ProgressBar, ProgressStyle};
 use rand::distributions::{Distribution, Uniform};
 use std::f64::MAX as FLOAT_MAX;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread;
+use std::time::Instant;
 
 use camera::Camera;
 use hitable::hit_record::HitRecord;
@@ -24,8 +28,6 @@ use hitable::moving_sphere::MovingSphere;
 use hitable::sphere::Sphere;
 use ray::Ray;
 use vec3::{unit_vector, Vec3};
-
-static NUM_THREADS: i32 = 8;
 
 /// Calculates a final color value for a given Ray
 fn get_color(ray: &Ray, world: &HitableList, depth: i32) -> Vec3 {
@@ -154,6 +156,7 @@ fn create_rand_scene(
 }
 
 fn main() {
+    let NUM_THREADS: usize = num_cpus::get();
     // let numX = 1200;
     // let numY = 800;
     let numX = 600;
@@ -175,8 +178,17 @@ fn main() {
         1.0,
     );
     let world = Arc::new(create_rand_scene(rand::thread_rng(), &range));
+    let progress_bar = ProgressBar::new((numX * numY) as u64);
+    progress_bar.set_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar:40} {percent}%")
+            .progress_chars("##-"),
+    );
 
+    println!("Beginning scene tracing using {} CPU cores.", NUM_THREADS);
+    let start = Instant::now();
     for y in 0..numY {
+        progress_bar.inc(numX as u64);
         for x in 0..numX {
             let mut child_threads = vec![];
             let mut color = Vec3::new(0.0, 0.0, 0.0);
@@ -207,6 +219,11 @@ fn main() {
             imgBuff.put_pixel(x, (numY - 1) - y, pixel);
         }
     }
+    progress_bar.finish_and_clear();
+    println!(
+        "Finished scene tracing in {}",
+        FormattedDuration(start.elapsed())
+    );
 
     let path = &Path::new("output.png");
     match File::create(path) {
