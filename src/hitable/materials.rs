@@ -38,12 +38,13 @@ impl Lambertian {
 }
 
 impl Material for Lambertian {
-    fn scatter(&self, _input_ray: &Ray, hit_record: &HitRecord) -> (Ray, Vec3, bool) {
+    fn scatter(&self, input_ray: &Ray, hit_record: &HitRecord) -> (Ray, Vec3, bool) {
         let target =
             hit_record.hit_point + hit_record.normal + utils::random_point_in_unit_sphere();
         let scatteredRay = Ray {
             origin: hit_record.hit_point,
             direction: target - hit_record.hit_point,
+            time: input_ray.time,
         };
         let attenuation = Vec3 { e: self.albedo.e };
         (scatteredRay, attenuation, true)
@@ -76,6 +77,7 @@ impl Material for Metal {
         let scatteredRay = Ray {
             origin: hit_record.hit_point,
             direction: reflected_ray + self.fuzziness * utils::random_point_in_unit_sphere(),
+            time: input_ray.time,
         };
         let attenuation = Vec3 { e: self.albedo.e };
         // If the length of the scattered ray in relation to the surface normal is <= 0,
@@ -145,11 +147,13 @@ impl Material for Dielectric {
             scattered_ray = Ray {
                 origin: hit_record.hit_point,
                 direction: utils::reflect(&input_ray.direction, &hit_record.normal),
+                time: input_ray.time,
             }
         } else {
             scattered_ray = Ray {
                 origin: hit_record.hit_point,
                 direction: refracted_ray,
+                time: input_ray.time,
             }
         };
 

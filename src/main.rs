@@ -19,7 +19,8 @@ use camera::Camera;
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
 use hitable::hitable_list::HitableList;
-use hitable::materials::{Dielectric, Lambertian, Material, Metal};
+use hitable::materials::{Dielectric, Lambertian, Metal};
+use hitable::moving_sphere::MovingSphere;
 use hitable::sphere::Sphere;
 use ray::Ray;
 use vec3::{unit_vector, Vec3};
@@ -36,6 +37,7 @@ fn get_color(ray: &Ray, world: &HitableList, depth: i32) -> Vec3 {
                 Ray {
                     origin: ray.origin,
                     direction: ray.direction,
+                    time: 0.0,
                 },
                 Vec3::new(0.0, 0.0, 0.0),
                 false,
@@ -79,38 +81,54 @@ fn create_rand_scene(
             {
                 continue;
             }
-            let material: Box<Material>;
-            if material_choice < 0.75 {
-                // Matte
-                material = Box::new(Lambertian {
-                    albedo: Vec3::new(
-                        range.sample(&mut rng) * range.sample(&mut rng),
-                        range.sample(&mut rng) * range.sample(&mut rng),
-                        range.sample(&mut rng) * range.sample(&mut rng),
-                    ),
-                });
-            } else if material_choice < 0.9 {
-                // Metal
-                material = Box::new(Metal::new(
-                    Vec3::new(
-                        0.5 * (1.0 + range.sample(&mut rng)),
-                        0.5 * (1.0 + range.sample(&mut rng)),
-                        0.5 * (1.0 + range.sample(&mut rng)),
-                    ),
-                    0.5 * range.sample(&mut rng),
-                ));
-            } else if material_choice < 0.95 {
-                // Glass
-                material = Box::new(Dielectric::new(1.5));
-            } else {
-                // Diamond
-                material = Box::new(Dielectric::new(2.4));
-            }
-            sphere_list.push(Box::new(Sphere {
-                center,
-                radius: 0.2,
-                material,
-            }));
+            let sphere: Box<Hitable> = {
+                if material_choice < 0.75 {
+                    // Matte
+                    Box::new(MovingSphere {
+                        start_center: center,
+                        end_center: center + Vec3::new(0.0, 0.5 * range.sample(&mut rng), 0.0),
+                        start_time: 0.0,
+                        end_time: 1.0,
+                        radius: 0.2,
+                        material: Box::new(Lambertian {
+                            albedo: Vec3::new(
+                                range.sample(&mut rng) * range.sample(&mut rng),
+                                range.sample(&mut rng) * range.sample(&mut rng),
+                                range.sample(&mut rng) * range.sample(&mut rng),
+                            ),
+                        }),
+                    })
+                } else if material_choice < 0.9 {
+                    // Metal
+                    Box::new(Sphere {
+                        center,
+                        radius: 0.2,
+                        material: Box::new(Metal::new(
+                            Vec3::new(
+                                0.5 * (1.0 + range.sample(&mut rng)),
+                                0.5 * (1.0 + range.sample(&mut rng)),
+                                0.5 * (1.0 + range.sample(&mut rng)),
+                            ),
+                            0.5 * range.sample(&mut rng),
+                        )),
+                    })
+                } else if material_choice < 0.95 {
+                    // Glass
+                    Box::new(Sphere {
+                        center,
+                        radius: 0.2,
+                        material: Box::new(Dielectric::new(1.5)),
+                    })
+                } else {
+                    // Diamond
+                    Box::new(Sphere {
+                        center,
+                        radius: 0.2,
+                        material: Box::new(Dielectric::new(2.4)),
+                    })
+                }
+            };
+            sphere_list.push(sphere);
         }
     }
 
@@ -136,8 +154,10 @@ fn create_rand_scene(
 }
 
 fn main() {
-    let numX = 1200;
-    let numY = 800;
+    // let numX = 1200;
+    // let numY = 800;
+    let numX = 600;
+    let numY = 400;
     let numSamples = 100;
     let range = Uniform::new_inclusive(0.0, 1.0);
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
@@ -151,6 +171,8 @@ fn main() {
         numX as f64 / numY as f64,
         0.1,
         10.0,
+        0.0,
+        1.0,
     );
     let world = Arc::new(create_rand_scene(rand::thread_rng(), &range));
 
