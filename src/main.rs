@@ -5,8 +5,10 @@ extern crate indicatif;
 extern crate num_cpus;
 extern crate rand;
 
+pub mod bounding_boxes;
 pub mod camera;
 pub mod hitable;
+pub mod material;
 pub mod ray;
 pub mod vec3;
 
@@ -20,17 +22,18 @@ use std::thread;
 use std::time::Instant;
 
 use camera::Camera;
+use hitable::bvh_node::BvhNode;
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
 use hitable::hitable_list::HitableList;
-use hitable::materials::{Dielectric, Lambertian, Metal};
 use hitable::moving_sphere::MovingSphere;
 use hitable::sphere::Sphere;
+use material::materials::{Dielectric, Lambertian, Metal};
 use ray::Ray;
 use vec3::{unit_vector, Vec3};
 
 /// Calculates a final color value for a given Ray
-fn get_color(ray: &Ray, world: &HitableList, depth: i32) -> Vec3 {
+fn get_color(ray: &Ray, world: &BvhNode, depth: i32) -> Vec3 {
     let ref mut rec = HitRecord::new();
     if world.hit(ray, 0.0001, FLOAT_MAX, rec) {
         let (scatteredRay, attenuation, didScatter) = match rec.material {
@@ -53,14 +56,14 @@ fn get_color(ray: &Ray, world: &HitableList, depth: i32) -> Vec3 {
     } else {
         let unit_direction = unit_vector(ray.direction);
         let t = 0.5 * (unit_direction.y() + 1.0);
-        return (1.0 - t) * Vec3::new(1.0, 0.55, 0.0) + t * Vec3::new(0.2, 0.1, 0.5);
+        return (1.0 - t) * Vec3::new(1.0, 1.0, 1.0) + t * Vec3::new(0.5, 0.7, 1.0);
     }
 }
 
 fn create_rand_scene(
     mut rng: rand::prelude::ThreadRng,
     range: &rand::distributions::Uniform<f64>,
-) -> HitableList {
+) -> BvhNode {
     let mut sphere_list = vec![Box::new(Sphere {
         center: Vec3::new(0.0, -1000.0, 0.0),
         radius: 1000.0,
@@ -152,7 +155,8 @@ fn create_rand_scene(
         material: Box::new(Metal::new(Vec3::new(0.5, 0.5, 0.5), 0.0)),
     }));
 
-    HitableList { list: sphere_list }
+    let ref mut list = HitableList { list: sphere_list };
+    BvhNode::new(list, 0.0, 1.0)
 }
 
 fn main() {
@@ -161,7 +165,7 @@ fn main() {
     // let numY = 800;
     let numX = 600;
     let numY = 400;
-    let numSamples = 100;
+    let numSamples = 500;
     let range = Uniform::new_inclusive(0.0, 1.0);
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
     let look_from = Vec3::new(13.0, 2.5, 3.0);
@@ -182,7 +186,7 @@ fn main() {
     progress_bar.set_style(
         ProgressStyle::default_bar()
             .template("[{elapsed_precise}] {bar:40} {percent}%")
-            .progress_chars("##-"),
+            .progress_chars("=>-"),
     );
 
     println!("Beginning scene tracing using {} CPU cores.", NUM_THREADS);

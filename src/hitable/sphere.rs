@@ -1,9 +1,12 @@
+use bounding_boxes::axis_aligned::AxisAlignedBoundingBox;
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
-use hitable::materials::Material;
+use material::material::Material;
 use ray::Ray;
 use vec3::{dot, Vec3};
 
+/// Represents a stationary sphere
+#[derive(Clone)]
 pub struct Sphere {
     pub center: Vec3,
     pub radius: f64,
@@ -38,5 +41,16 @@ impl Hitable for Sphere {
         } else {
             return false;
         }
+    }
+
+    fn bounding_box(&self, _start_time: f64, _end_time: f64) -> Option<AxisAlignedBoundingBox> {
+        Some(AxisAlignedBoundingBox::new(
+            self.center - self.radius,
+            self.center + self.radius,
+        ))
+    }
+
+    fn box_clone(&self) -> Box<Hitable> {
+        Box::new((*self).clone())
     }
 }

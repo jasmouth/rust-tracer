@@ -1,4 +1,4 @@
-use hitable::materials::Material;
+use material::material::Material;
 use vec3::Vec3;
 
 pub struct HitRecord {
@@ -16,5 +16,13 @@ impl HitRecord {
             normal: Vec3::new(0.0, 0.0, 0.0),
             material: None,
         }
+    }
+
+    /// Updates the record with the values existing in `other`
+    pub fn from(&mut self, other: &mut HitRecord) {
+        self.t = other.t;
+        self.hit_point = other.hit_point;
+        self.normal = other.normal;
+        self.material = other.material.take();
     }
 }

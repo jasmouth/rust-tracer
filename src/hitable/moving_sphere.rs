@@ -1,9 +1,14 @@
+use bounding_boxes::axis_aligned::AxisAlignedBoundingBox;
+use bounding_boxes::utils;
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
-use hitable::materials::Material;
+use material::material::Material;
 use ray::Ray;
 use vec3::{dot, Vec3};
 
+/// Represents a sphere that can move from one point to another
+/// over a specific timeframe
+#[derive(Clone)]
 pub struct MovingSphere {
     pub radius: f64,
     pub start_center: Vec3,
@@ -50,5 +55,21 @@ impl Hitable for MovingSphere {
         } else {
             return false;
         }
+    }
+
+    fn bounding_box(&self, start_time: f64, end_time: f64) -> Option<AxisAlignedBoundingBox> {
+        let start_box = AxisAlignedBoundingBox::new(
+            self.get_center(start_time) - self.radius,
+            self.get_center(start_time) + self.radius,
+        );
+        let end_box = AxisAlignedBoundingBox::new(
+            self.get_center(end_time) - self.radius,
+            self.get_center(end_time) + self.radius,
+        );
+        Some(utils::calc_surrounding_box(&start_box, &end_box))
+    }
+
+    fn box_clone(&self) -> Box<Hitable> {
+        Box::new((*self).clone())
     }
 }
