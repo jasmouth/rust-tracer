@@ -10,6 +10,7 @@ pub mod camera;
 pub mod hitable;
 pub mod material;
 pub mod ray;
+pub mod textures;
 pub mod vec3;
 
 use indicatif::{FormattedDuration, ProgressBar, ProgressStyle};
@@ -30,6 +31,8 @@ use hitable::moving_sphere::MovingSphere;
 use hitable::sphere::Sphere;
 use material::materials::{Dielectric, Lambertian, Metal};
 use ray::Ray;
+use textures::checker_texture::CheckerTexture;
+use textures::constant_texture::ConstantTexture;
 use vec3::{unit_vector, Vec3};
 
 /// Calculates a final color value for a given Ray
@@ -68,7 +71,10 @@ fn create_rand_scene(
         center: Vec3::new(0.0, -1000.0, 0.0),
         radius: 1000.0,
         material: Box::new(Lambertian {
-            albedo: Vec3::new(0.2, 0.2, 0.2),
+            albedo: Box::new(CheckerTexture::new(
+                Box::new(ConstantTexture::new(Vec3::new(0.2, 0.3, 0.1))),
+                Box::new(ConstantTexture::new(Vec3::new(0.9, 0.9, 0.9))),
+            )),
         }),
     }) as Box<Hitable>];
 
@@ -96,11 +102,11 @@ fn create_rand_scene(
                         end_time: 1.0,
                         radius: 0.2,
                         material: Box::new(Lambertian {
-                            albedo: Vec3::new(
+                            albedo: Box::new(ConstantTexture::new(Vec3::new(
                                 range.sample(&mut rng) * range.sample(&mut rng),
                                 range.sample(&mut rng) * range.sample(&mut rng),
                                 range.sample(&mut rng) * range.sample(&mut rng),
-                            ),
+                            ))),
                         }),
                     })
                 } else if material_choice < 0.9 {
@@ -109,11 +115,11 @@ fn create_rand_scene(
                         center,
                         radius: 0.2,
                         material: Box::new(Metal::new(
-                            Vec3::new(
+                            Box::new(ConstantTexture::new(Vec3::new(
                                 0.5 * (1.0 + range.sample(&mut rng)),
                                 0.5 * (1.0 + range.sample(&mut rng)),
                                 0.5 * (1.0 + range.sample(&mut rng)),
-                            ),
+                            ))),
                             0.5 * range.sample(&mut rng),
                         )),
                     })
@@ -146,13 +152,16 @@ fn create_rand_scene(
         center: Vec3::new(0.0, 1.0, 1.0),
         radius: 1.0,
         material: Box::new(Lambertian {
-            albedo: Vec3::new(1.0, 1.0, 1.0),
+            albedo: Box::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
         }),
     }));
     sphere_list.push(Box::new(Sphere {
         center: Vec3::new(4.0, 1.0, 0.0),
         radius: 1.0,
-        material: Box::new(Metal::new(Vec3::new(0.5, 0.5, 0.5), 0.0)),
+        material: Box::new(Metal::new(
+            Box::new(ConstantTexture::new(Vec3::new(0.5, 0.5, 0.5))),
+            0.0,
+        )),
     }));
 
     let ref mut list = HitableList { list: sphere_list };
@@ -161,9 +170,12 @@ fn create_rand_scene(
 
 fn main() {
     let NUM_THREADS: usize = num_cpus::get();
-    let numX = 1200;
-    let numY = 800;
-    let numSamples = 1000;
+    // let numX = 1200;
+    // let numY = 800;
+    // let numSamples = 1000;
+    let numX = 600;
+    let numY = 400;
+    let numSamples = 500;
     let range = Uniform::new_inclusive(0.0, 1.0);
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
     let look_from = Vec3::new(13.0, 2.5, 3.0);

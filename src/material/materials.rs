@@ -3,18 +3,20 @@ use hitable::utils;
 use material::material::Material;
 use rand::distributions::{Distribution, Uniform};
 use ray::Ray;
+use textures::constant_texture::ConstantTexture;
+use textures::texture::Texture;
 use vec3::{dot, unit_vector, Vec3};
 
 /// A Lambertian material is a "matte", or diffusely reflecting, surface.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone)]
 pub struct Lambertian {
-    pub albedo: Vec3,
+    pub albedo: Box<Texture>,
 }
 
 impl Lambertian {
     pub fn new() -> Self {
         Lambertian {
-            albedo: Vec3::new(0.0, 0.0, 0.0),
+            albedo: Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
         }
     }
 }
@@ -28,7 +30,7 @@ impl Material for Lambertian {
             direction: target - hit_record.hit_point,
             time: input_ray.time,
         };
-        let attenuation = Vec3 { e: self.albedo.e };
+        let attenuation = self.albedo.value(0.0, 0.0, &hit_record.hit_point);
         (scatteredRay, attenuation, true)
     }
 
@@ -38,14 +40,14 @@ impl Material for Lambertian {
 }
 
 /// A metallic surface. The fuzziness field dictates how glossy (or polished) the surface appears.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone)]
 pub struct Metal {
-    pub albedo: Vec3,
+    pub albedo: Box<Texture>,
     pub fuzziness: f64,
 }
 
 impl Metal {
-    pub fn new(albedo: Vec3, fuzz: f64) -> Self {
+    pub fn new(albedo: Box<Texture>, fuzz: f64) -> Self {
         Metal {
             albedo,
             fuzziness: if fuzz < 1.0 { fuzz } else { 1.0 },
@@ -61,7 +63,7 @@ impl Material for Metal {
             direction: reflected_ray + self.fuzziness * utils::random_point_in_unit_sphere(),
             time: input_ray.time,
         };
-        let attenuation = Vec3 { e: self.albedo.e };
+        let attenuation = self.albedo.value(0.0, 0.0, &hit_record.hit_point);
         // If the length of the scattered ray in relation to the surface normal is <= 0,
         // the ray has been scattered under the object's surface.
         let didScatter = dot(&scatteredRay.direction, &hit_record.normal) > 0.0;
