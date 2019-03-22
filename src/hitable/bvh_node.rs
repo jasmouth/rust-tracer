@@ -19,44 +19,22 @@ impl BvhNode {
     /// elements of the provided HitableList
     pub fn new(hitable_list: &mut HitableList, start_time: f64, end_time: f64) -> Self {
         // Sort the hitable list by a randomly chosen axis
-        match (rand::thread_rng().gen::<f64>() * 3.0) as u8 {
-            0 => hitable_list.list.sort_by(|a, b| {
-                // Sort list by x-axis
-                let a_box = a
-                    .bounding_box(0.0, 0.0)
-                    .expect("No bounding box for left child!");
-                let b_box = b
-                    .bounding_box(0.0, 0.0)
-                    .expect("No bounding box for right child!");
-                let left_min_bound = a_box.min_bound.x();
-                let right_min_bound = b_box.min_bound.x();
-                left_min_bound.partial_cmp(&right_min_bound).unwrap()
-            }),
-            1 => hitable_list.list.sort_by(|a, b| {
-                // Sort list by y-axis
-                let a_box = a
-                    .bounding_box(0.0, 0.0)
-                    .expect("No bounding box for left child!");
-                let b_box = b
-                    .bounding_box(0.0, 0.0)
-                    .expect("No bounding box for right child!");
-                let left_min_bound = a_box.min_bound.y();
-                let right_min_bound = b_box.min_bound.y();
-                left_min_bound.partial_cmp(&right_min_bound).unwrap()
-            }),
-            _ => hitable_list.list.sort_by(|a, b| {
-                // Sort list by z-axis
-                let a_box = a
-                    .bounding_box(0.0, 0.0)
-                    .expect("No bounding box for left child!");
-                let b_box = b
-                    .bounding_box(0.0, 0.0)
-                    .expect("No bounding box for right child!");
-                let left_min_bound = a_box.min_bound.z();
-                let right_min_bound = b_box.min_bound.z();
-                left_min_bound.partial_cmp(&right_min_bound).unwrap()
-            }),
+        let rand_axis = (rand::thread_rng().gen::<f64>() * 3.0) as u8;
+        let sort_ord = |a: &Box<Hitable>, b: &Box<Hitable>| {
+            let a_box = a
+                .bounding_box(0.0, 0.0)
+                .expect("No bounding box for left child!");
+            let b_box = b
+                .bounding_box(0.0, 0.0)
+                .expect("No bounding box for right child!");
+            let (a_min_bound, b_min_bound) = match rand_axis {
+                0 => (a_box.min_bound.x(), b_box.min_bound.x()),
+                1 => (a_box.min_bound.y(), b_box.min_bound.y()),
+                _ => (a_box.min_bound.z(), b_box.min_bound.z()),
+            };
+            a_min_bound.partial_cmp(&b_min_bound).unwrap()
         };
+        hitable_list.list.sort_by(sort_ord);
         // If there are more than 2 elements in the list, split it a la binary search
         let (left, right) = match hitable_list.len() {
             1 => (hitable_list.list[0].clone(), hitable_list.list[0].clone()),
