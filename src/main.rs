@@ -161,11 +161,9 @@ fn create_rand_scene(
 
 fn main() {
     let NUM_THREADS: usize = num_cpus::get();
-    // let numX = 1200;
-    // let numY = 800;
-    let numX = 600;
-    let numY = 400;
-    let numSamples = 500;
+    let numX = 1200;
+    let numY = 800;
+    let numSamples = 1000;
     let range = Uniform::new_inclusive(0.0, 1.0);
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
     let look_from = Vec3::new(13.0, 2.5, 3.0);
