@@ -1,4 +1,4 @@
-#![allow(non_snake_case)]
+#![allow(non_snake_case, dead_code)]
 
 extern crate image;
 extern crate indicatif;
@@ -10,7 +10,7 @@ pub mod camera;
 pub mod hitable;
 pub mod material;
 pub mod ray;
-pub mod textures;
+pub mod texture;
 pub mod vec3;
 
 use indicatif::{FormattedDuration, ProgressBar, ProgressStyle};
@@ -31,8 +31,7 @@ use hitable::moving_sphere::MovingSphere;
 use hitable::sphere::Sphere;
 use material::materials::{Dielectric, Lambertian, Metal};
 use ray::Ray;
-use textures::checker_texture::CheckerTexture;
-use textures::constant_texture::ConstantTexture;
+use texture::textures::{CheckerTexture, ConstantTexture, NoiseTexture};
 use vec3::{unit_vector, Vec3};
 
 /// Calculates a final color value for a given Ray
@@ -175,7 +174,7 @@ fn main() {
     // let numSamples = 1000;
     let numX = 600;
     let numY = 400;
-    let numSamples = 500;
+    let numSamples = 100;
     let range = Uniform::new_inclusive(0.0, 1.0);
     let mut imgBuff = image::ImageBuffer::new(numX, numY);
     let look_from = Vec3::new(13.0, 2.5, 3.0);
@@ -191,11 +190,28 @@ fn main() {
         0.0,
         1.0,
     );
-    let world = Arc::new(create_rand_scene(rand::thread_rng(), &range));
+    // let world = Arc::new(create_rand_scene(rand::thread_rng(), &range));
+
+    let pertext = Box::new(NoiseTexture::new(1.5));
+    let mut list: Vec<Box<Hitable>> = vec![];
+    list.push(Box::new(Sphere {
+        center: Vec3::new(0.0, -1000.0, 0.0),
+        radius: 1000.0,
+        material: Box::new(Lambertian {
+            albedo: pertext.clone(),
+        }),
+    }));
+    list.push(Box::new(Sphere {
+        center: Vec3::new(0.0, 2.0, 0.0),
+        radius: 2.0,
+        material: Box::new(Lambertian { albedo: pertext }),
+    }));
+    let world = Arc::new(BvhNode::new(&mut HitableList { list }, 0.0, 0.0));
+
     let progress_bar = ProgressBar::new((numX * numY) as u64);
     progress_bar.set_style(
         ProgressStyle::default_bar()
-            .template("[{elapsed_precise}] {bar:40} {percent}%")
+            .template("[{percent}%] {bar:40} [{elapsed_precise} | ~{eta} remaining]")
             .progress_chars("=>-"),
     );
 

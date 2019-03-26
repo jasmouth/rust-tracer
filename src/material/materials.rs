@@ -3,8 +3,8 @@ use hitable::utils;
 use material::material::Material;
 use rand::distributions::{Distribution, Uniform};
 use ray::Ray;
-use textures::constant_texture::ConstantTexture;
-use textures::texture::Texture;
+use texture::texture::Texture;
+use texture::textures::ConstantTexture;
 use vec3::{dot, unit_vector, Vec3};
 
 /// A Lambertian material is a "matte", or diffusely reflecting, surface.
