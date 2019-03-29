@@ -1,6 +1,7 @@
 use bounding_boxes::axis_aligned::AxisAlignedBoundingBox;
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
+use hitable::utils;
 use material::material::Material;
 use ray::Ray;
 use vec3::{dot, Vec3};
@@ -27,6 +28,9 @@ impl Hitable for Sphere {
                 rec.hit_point = ray.point_at_param(rec.t);
                 rec.normal = (rec.hit_point - self.center) / self.radius;
                 rec.material = Some(self.material.clone());
+                let (u, v) = utils::get_sphere_uv(&rec.normal);
+                rec.u = u;
+                rec.v = v;
                 return true;
             }
             temp = (-b + discriminant.sqrt()) / a;
@@ -35,6 +39,9 @@ impl Hitable for Sphere {
                 rec.hit_point = ray.point_at_param(rec.t);
                 rec.normal = (rec.hit_point - self.center) / self.radius;
                 rec.material = Some(self.material.clone());
+                let (u, v) = utils::get_sphere_uv(&rec.normal);
+                rec.u = u;
+                rec.v = v;
                 return true;
             }
             return false;

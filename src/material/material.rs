@@ -12,6 +12,15 @@ pub trait Material: Send + Sync {
     ///   - Vec3: The attenuation of the scattered ray,
     ///   - bool: Whether or not the input ray was successfully scattered
     fn scatter(&self, input_ray: &Ray, hit_record: &HitRecord) -> (Ray, Vec3, bool);
+    /// Calculates a light's emitted color value.
+    /// #### Arguments
+    /// - `u`: Texture coordinate (u,_)
+    /// - `v`: Texture coordinate (_,v)
+    /// - `hit_point`: The point at which a Ray hits the Material
+    fn emit(&self, u: f64, v: f64, hit_point: &Vec3) -> Vec3 {
+        #![allow(unused_variables)]
+        Vec3::new(0.0, 0.0, 0.0)
+    }
     fn box_clone(&self) -> Box<Material>;
 }
 

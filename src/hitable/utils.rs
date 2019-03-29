@@ -1,4 +1,5 @@
 use rand::distributions::{Distribution, Uniform};
+use std::f64::consts::PI;
 use vec3::{dot, unit_vector, Vec3};
 
 /// Generates a random point in a unit-radius sphere
@@ -35,6 +36,15 @@ pub fn random_point_in_unit_disk() -> Vec3 {
     }
 
     point
+}
+
+/// Calculates a fractional position on a sphere for a given Ray `hit_point`
+pub fn get_sphere_uv(hit_point: &Vec3) -> (f64, f64) {
+    let phi = hit_point.z().atan2(hit_point.x());
+    let theta = hit_point.y().asin();
+    let u = 1.0 - (phi + PI) / (2.0 * PI);
+    let v = (theta + PI / 2.0) / PI;
+    (u, v)
 }
 
 /// Calculates the direction of a ray after reflecting off of a mirrored surface.

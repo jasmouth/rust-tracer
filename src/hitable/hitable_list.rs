@@ -20,11 +20,11 @@ impl HitableList {
 impl Hitable for HitableList {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> bool {
         let mut hit = false;
-        let mut currentClosest = t_max;
+        let mut current_closest = t_max;
         for obj in self.list.iter() {
-            if obj.hit(ray, t_min, currentClosest, rec) {
+            if obj.hit(ray, t_min, current_closest, rec) {
                 hit = true;
-                currentClosest = rec.t;
+                current_closest = rec.t;
             }
         }
 

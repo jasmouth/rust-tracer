@@ -5,3 +5,5 @@ pub mod hitable_list;
 pub mod moving_sphere;
 pub mod sphere;
 pub mod utils;
+pub mod rectangles;
+pub mod flip_normals;

@@ -25,13 +25,15 @@ impl Material for Lambertian {
     fn scatter(&self, input_ray: &Ray, hit_record: &HitRecord) -> (Ray, Vec3, bool) {
         let target =
             hit_record.hit_point + hit_record.normal + utils::random_point_in_unit_sphere();
-        let scatteredRay = Ray {
+        let scattered_ray = Ray {
             origin: hit_record.hit_point,
             direction: target - hit_record.hit_point,
             time: input_ray.time,
         };
-        let attenuation = self.albedo.value(0.0, 0.0, &hit_record.hit_point);
-        (scatteredRay, attenuation, true)
+        let attenuation = self
+            .albedo
+            .value(hit_record.u, hit_record.v, &hit_record.hit_point);
+        (scattered_ray, attenuation, true)
     }
 
     fn box_clone(&self) -> Box<Material> {
@@ -58,16 +60,18 @@ impl Metal {
 impl Material for Metal {
     fn scatter(&self, input_ray: &Ray, hit_record: &HitRecord) -> (Ray, Vec3, bool) {
         let reflected_ray = utils::reflect(&unit_vector(input_ray.direction), &hit_record.normal);
-        let scatteredRay = Ray {
+        let scattered_ray = Ray {
             origin: hit_record.hit_point,
             direction: reflected_ray + self.fuzziness * utils::random_point_in_unit_sphere(),
             time: input_ray.time,
         };
-        let attenuation = self.albedo.value(0.0, 0.0, &hit_record.hit_point);
+        let attenuation = self
+            .albedo
+            .value(hit_record.u, hit_record.v, &hit_record.hit_point);
         // If the length of the scattered ray in relation to the surface normal is <= 0,
         // the ray has been scattered under the object's surface.
-        let didScatter = dot(&scatteredRay.direction, &hit_record.normal) > 0.0;
-        (scatteredRay, attenuation, didScatter)
+        let did_scatter = dot(&scattered_ray.direction, &hit_record.normal) > 0.0;
+        (scattered_ray, attenuation, did_scatter)
     }
 
     fn box_clone(&self) -> Box<Material> {
@@ -142,6 +146,37 @@ impl Material for Dielectric {
         };
 
         (scattered_ray, attenuation, true)
+    }
+
+    fn box_clone(&self) -> Box<Material> {
+        Box::new((*self).clone())
+    }
+}
+
+/// A material that emits diffused (i.e. non-concentrated) light
+#[derive(Clone)]
+pub struct DiffuseLight {
+    texture: Box<Texture>,
+}
+
+impl DiffuseLight {
+    pub fn new(texture: Box<Texture>) -> Self {
+        DiffuseLight { texture }
+    }
+}
+
+impl Material for DiffuseLight {
+    fn scatter(&self, input_ray: &Ray, _hit_record: &HitRecord) -> (Ray, Vec3, bool) {
+        let blank_ray = Ray {
+            direction: input_ray.direction,
+            origin: input_ray.origin,
+            time: 0.0,
+        };
+        (blank_ray, Vec3::new(0.0, 0.0, 0.0), false)
+    }
+
+    fn emit(&self, u: f64, v: f64, hit_point: &Vec3) -> Vec3 {
+        self.texture.value(u, v, hit_point)
     }
 
     fn box_clone(&self) -> Box<Material> {

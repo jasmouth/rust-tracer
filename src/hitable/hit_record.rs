@@ -6,6 +6,8 @@ pub struct HitRecord {
     pub hit_point: Vec3,
     pub normal: Vec3,
     pub material: Option<Box<Material>>,
+    pub u: f64,
+    pub v: f64,
 }
 
 impl HitRecord {
@@ -15,6 +17,8 @@ impl HitRecord {
             hit_point: Vec3::new(0.0, 0.0, 0.0),
             normal: Vec3::new(0.0, 0.0, 0.0),
             material: None,
+            u: 0.0,
+            v: 0.0,
         }
     }
 
@@ -24,5 +28,7 @@ impl HitRecord {
         self.hit_point = other.hit_point;
         self.normal = other.normal;
         self.material = other.material.take();
+        self.u = other.u;
+        self.v = other.v;
     }
 }
