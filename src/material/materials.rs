@@ -25,11 +25,11 @@ impl Material for Lambertian {
     fn scatter(&self, input_ray: &Ray, hit_record: &HitRecord) -> (Ray, Vec3, bool) {
         let target =
             hit_record.hit_point + hit_record.normal + utils::random_point_in_unit_sphere();
-        let scattered_ray = Ray {
-            origin: hit_record.hit_point,
-            direction: target - hit_record.hit_point,
-            time: input_ray.time,
-        };
+        let scattered_ray = Ray::new(
+            hit_record.hit_point,
+            target - hit_record.hit_point,
+            input_ray.time,
+        );
         let attenuation = self
             .albedo
             .value(hit_record.u, hit_record.v, &hit_record.hit_point);
@@ -60,11 +60,11 @@ impl Metal {
 impl Material for Metal {
     fn scatter(&self, input_ray: &Ray, hit_record: &HitRecord) -> (Ray, Vec3, bool) {
         let reflected_ray = utils::reflect(&unit_vector(input_ray.direction), &hit_record.normal);
-        let scattered_ray = Ray {
-            origin: hit_record.hit_point,
-            direction: reflected_ray + self.fuzziness * utils::random_point_in_unit_sphere(),
-            time: input_ray.time,
-        };
+        let scattered_ray = Ray::new(
+            hit_record.hit_point,
+            reflected_ray + self.fuzziness * utils::random_point_in_unit_sphere(),
+            input_ray.time,
+        );
         let attenuation = self
             .albedo
             .value(hit_record.u, hit_record.v, &hit_record.hit_point);
@@ -132,17 +132,13 @@ impl Material for Dielectric {
 
         let scattered_ray: Ray;
         if range.sample(&mut rng) <= reflect_probability {
-            scattered_ray = Ray {
-                origin: hit_record.hit_point,
-                direction: utils::reflect(&input_ray.direction, &hit_record.normal),
-                time: input_ray.time,
-            }
+            scattered_ray = Ray::new(
+                hit_record.hit_point,
+                utils::reflect(&input_ray.direction, &hit_record.normal),
+                input_ray.time,
+            );
         } else {
-            scattered_ray = Ray {
-                origin: hit_record.hit_point,
-                direction: refracted_ray,
-                time: input_ray.time,
-            }
+            scattered_ray = Ray::new(hit_record.hit_point, refracted_ray, input_ray.time);
         };
 
         (scattered_ray, attenuation, true)
@@ -167,11 +163,7 @@ impl DiffuseLight {
 
 impl Material for DiffuseLight {
     fn scatter(&self, input_ray: &Ray, _hit_record: &HitRecord) -> (Ray, Vec3, bool) {
-        let blank_ray = Ray {
-            direction: input_ray.direction,
-            origin: input_ray.origin,
-            time: 0.0,
-        };
+        let blank_ray = Ray::new(input_ray.direction, input_ray.origin, 0.0);
         (blank_ray, Vec3::new(0.0, 0.0, 0.0), false)
     }
 

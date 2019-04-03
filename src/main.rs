@@ -44,11 +44,7 @@ fn get_color(ray: &Ray, world: &BvhNode, depth: i32) -> Vec3 {
             ),
             None => (
                 (
-                    Ray {
-                        origin: ray.origin,
-                        direction: ray.direction,
-                        time: 0.0,
-                    },
+                    Ray::new(ray.origin, ray.direction, 0.0),
                     Vec3::new(0.0, 0.0, 0.0),
                     false,
                 ),

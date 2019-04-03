@@ -65,14 +65,14 @@ impl Camera {
     pub fn create_ray(&self, x: f64, y: f64) -> Ray {
         let rand_point = self.lens_radius * utils::random_point_in_unit_disk();
         let offset = (self.u * rand_point.x()) + (self.v * rand_point.y());
-        Ray {
-            origin: self.origin + offset,
-            direction: self.lower_left_corner + (x * self.horizontal) + (y * self.vertical)
+        Ray::new(
+            self.origin + offset,
+            self.lower_left_corner + (x * self.horizontal) + (y * self.vertical)
                 - self.origin
                 - offset,
-            time: self.shutter_open_time
+            self.shutter_open_time
                 + rand::thread_rng().gen::<f64>()
                     * (self.shutter_close_time - self.shutter_open_time),
-        }
+        )
     }
 }
