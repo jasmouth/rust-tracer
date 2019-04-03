@@ -1,9 +1,10 @@
 pub mod bvh_node;
+pub mod flip_normals;
 pub mod hit_record;
 pub mod hitable;
 pub mod hitable_list;
 pub mod moving_sphere;
+pub mod rectangles;
 pub mod sphere;
 pub mod utils;
-pub mod rectangles;
-pub mod flip_normals;
+pub mod transformations;

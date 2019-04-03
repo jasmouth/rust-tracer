@@ -1,6 +1,8 @@
 use bounding_boxes::axis_aligned::AxisAlignedBoundingBox;
+use hitable::flip_normals::FlipNormals;
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
+use hitable::hitable_list::HitableList;
 use material::material::Material;
 use ray::Ray;
 use vec3::Vec3;
@@ -139,6 +141,94 @@ impl Hitable for YZRect {
             Vec3::new(self.k - 0.0001, self.y_0, self.z_0),
             Vec3::new(self.k + 0.0001, self.y_1, self.z_1),
         ))
+    }
+
+    fn box_clone(&self) -> Box<Hitable> {
+        Box::new((*self).clone())
+    }
+}
+
+/// Represents a block (i.e. a six-sided cuboid)
+#[derive(Clone)]
+pub struct AxisAlignedBlock {
+    pub p_min: Vec3,
+    pub p_max: Vec3,
+    pub sides: HitableList,
+}
+
+impl AxisAlignedBlock {
+    /// Constructs a new AxisAlignedBlock
+    /// #### Arguments:
+    /// - `p_min`: The plane to use for the lower bound of the box
+    /// - `p_max`: The plane to use for the upper bound of the box
+    /// - `material`: The material to use for the sides of the box
+    pub fn new(p_min: Vec3, p_max: Vec3, material: Box<Material>) -> Self {
+        let left_wall = Box::new(YZRect {
+            material: material.clone(),
+            y_0: p_min.y(),
+            y_1: p_max.y(),
+            z_0: p_min.z(),
+            z_1: p_max.z(),
+            k: p_max.x(),
+        });
+        let right_wall = Box::new(FlipNormals::new(Box::new(YZRect {
+            material: material.clone(),
+            y_0: p_min.y(),
+            y_1: p_max.y(),
+            z_0: p_min.z(),
+            z_1: p_max.z(),
+            k: p_min.x(),
+        })));
+        let back_wall = Box::new(XYRect {
+            material: material.clone(),
+            x_0: p_min.x(),
+            x_1: p_max.x(),
+            y_0: p_min.y(),
+            y_1: p_max.y(),
+            k: p_max.z(),
+        });
+        let front_wall = Box::new(FlipNormals::new(Box::new(XYRect {
+            material: material.clone(),
+            x_0: p_min.x(),
+            x_1: p_max.x(),
+            y_0: p_min.y(),
+            y_1: p_max.y(),
+            k: p_min.z(),
+        })));
+        let floor = Box::new(FlipNormals::new(Box::new(XZRect {
+            material: material.clone(),
+            x_0: p_min.x(),
+            x_1: p_max.x(),
+            z_0: p_min.z(),
+            z_1: p_max.z(),
+            k: p_min.y(),
+        })));
+        let ceiling = Box::new(XZRect {
+            material: material.clone(),
+            x_0: p_min.x(),
+            x_1: p_max.x(),
+            z_0: p_min.z(),
+            z_1: p_max.z(),
+            k: p_max.y(),
+        });
+
+        AxisAlignedBlock {
+            p_min,
+            p_max,
+            sides: HitableList {
+                list: vec![left_wall, right_wall, back_wall, front_wall, floor, ceiling],
+            },
+        }
+    }
+}
+
+impl Hitable for AxisAlignedBlock {
+    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> bool {
+        self.sides.hit(ray, t_min, t_max, rec)
+    }
+
+    fn bounding_box(&self, _start_time: f64, _end_time: f64) -> Option<AxisAlignedBoundingBox> {
+        Some(AxisAlignedBoundingBox::new(self.p_min, self.p_max))
     }
 
     fn box_clone(&self) -> Box<Hitable> {

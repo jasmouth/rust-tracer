@@ -26,12 +26,15 @@ use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
 use hitable::hitable_list::HitableList;
 use hitable::moving_sphere::MovingSphere;
-use hitable::rectangles::{XYRect, XZRect, YZRect};
+use hitable::rectangles::{AxisAlignedBlock, XYRect, XZRect, YZRect};
 use hitable::sphere::Sphere;
+use hitable::transformations::{RotateY, Translate};
 use material::materials::{Dielectric, DiffuseLight, Lambertian, Metal};
 use ray::Ray;
 use texture::textures::{CheckerTexture, ConstantTexture};
 use vec3::Vec3;
+
+static MAX_DEPTH: i32 = 50;
 
 /// Calculates a final color value for a given Ray
 fn get_color(ray: &Ray, world: &BvhNode, depth: i32) -> Vec3 {
@@ -51,7 +54,7 @@ fn get_color(ray: &Ray, world: &BvhNode, depth: i32) -> Vec3 {
                 Vec3::new(0.0, 0.0, 0.0),
             ),
         };
-        if depth < 50 && did_scatter {
+        if depth < MAX_DEPTH && did_scatter {
             return emitted_light + attenuation * get_color(&scattered_ray, world, depth + 1);
         } else {
             return emitted_light;
@@ -211,7 +214,7 @@ fn create_cornell_box() -> BvhNode {
         k: 0.0,
     });
     let ceiling = Box::new(XZRect {
-        material: Box::new(white),
+        material: Box::new(white.clone()),
         x_0: 0.0,
         x_1: 555.0,
         z_0: 0.0,
@@ -220,10 +223,10 @@ fn create_cornell_box() -> BvhNode {
     });
     let ceiling_light = Box::new(XZRect {
         material: Box::new(light),
-        x_0: 113.0,
+        x_0: 112.0,
         x_1: 443.0,
         z_0: 127.0,
-        z_1: 432.0,
+        z_1: 428.0,
         k: 554.0,
     });
 
@@ -234,11 +237,28 @@ fn create_cornell_box() -> BvhNode {
         floor,
         Box::new(FlipNormals::new(ceiling)),
         ceiling_light,
-        Box::new(Sphere {
-            center: Vec3::new(240.0, 100.0, 250.0),
-            radius: 100.0,
-            material: Box::new(Dielectric::new(1.5)),
-        }),
+        Box::new(Translate::new(
+            Box::new(RotateY::new(
+                Box::new(AxisAlignedBlock::new(
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(165.0, 330.0, 165.0),
+                    Box::new(white.clone()),
+                )),
+                15.0,
+            )),
+            Vec3::new(265.0, 0.0, 295.0),
+        )),
+        Box::new(Translate::new(
+            Box::new(RotateY::new(
+                Box::new(AxisAlignedBlock::new(
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(165.0, 165.0, 165.0),
+                    Box::new(white.clone()),
+                )),
+                -18.0,
+            )),
+            Vec3::new(130.0, 0.0, 65.0),
+        )),
     ];
 
     BvhNode::new(&mut HitableList { list }, 0.0, 0.0)
@@ -246,17 +266,16 @@ fn create_cornell_box() -> BvhNode {
 
 fn main() {
     let num_threads: usize = num_cpus::get();
-    // let numX = 1200;
-    // let numY = 800;
-    // let num_samples_per_thread = 125;
+    // let numX = 1080;
+    // let numY = 1080;
     let num_x = 300;
     let num_y = 300;
     let num_samples_per_thread = 125;
     let num_samples = num_threads * num_samples_per_thread;
     let range = Uniform::new_inclusive(0.0, 1.0);
     let mut img_buff = image::ImageBuffer::new(num_x, num_y);
-    let look_from = Vec3::new(278.0, 278.0, -800.0);
-    let look_at = Vec3::new(278.0, 278.0, 0.0);
+    let look_from = Vec3::new(277.5, 277.5, -800.0);
+    let look_at = Vec3::new(277.5, 277.5, 0.0);
     let camera = Camera::new(
         look_from,
         look_at,
