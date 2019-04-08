@@ -175,3 +175,27 @@ impl Material for DiffuseLight {
         Box::new((*self).clone())
     }
 }
+
+/// A material that uniformly scatters light in all directions
+#[derive(Clone)]
+pub struct Isotropic {
+    pub albedo: Box<Texture>,
+}
+
+impl Material for Isotropic {
+    fn scatter(&self, input_ray: &Ray, hit_record: &HitRecord) -> (Ray, Vec3, bool) {
+        let scattered_ray = Ray::new(
+            hit_record.hit_point,
+            utils::random_point_in_unit_sphere(),
+            input_ray.time,
+        );
+        let attenuation = self
+            .albedo
+            .value(hit_record.u, hit_record.v, &hit_record.hit_point);
+        (scattered_ray, attenuation, true)
+    }
+
+    fn box_clone(&self) -> Box<Material> {
+        Box::new((*self).clone())
+    }
+}

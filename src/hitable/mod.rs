@@ -8,3 +8,4 @@ pub mod rectangles;
 pub mod sphere;
 pub mod utils;
 pub mod transformations;
+pub mod volumes;

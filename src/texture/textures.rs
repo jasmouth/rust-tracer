@@ -60,17 +60,20 @@ impl Texture for CheckerTexture {
 #[derive(Copy, Clone)]
 pub struct NoiseTexture {
     pub noise: Perlin,
-    pub scale: f64,
+    pub frequency: f64,
+    pub octaves: u8,
 }
 
 impl NoiseTexture {
     /// Constructs a new NoiseTexture
     /// #### Arguments:
-    /// - `scale`: controls the frequency of the noise's variance
-    pub fn new(scale: f64) -> Self {
+    /// - `frequency`: controls the frequency of the noise's variance
+    /// - `octaves`: controls the number of octaves to use during noise generation
+    pub fn new(frequency: f64, octaves: u8) -> Self {
         NoiseTexture {
             noise: Perlin::new(),
-            scale,
+            frequency,
+            octaves,
         }
     }
 }
@@ -80,7 +83,9 @@ impl Texture for NoiseTexture {
         // NOTE: This currently results in a marble-like texture,
         // and there is not a way for consumers of this texture to
         // configure anything aside from the frequency
-        let sine = (self.scale * hit_point.z() + 10.0 * self.noise.turbulance(&hit_point, 7)).sin();
+        let sine = (self.frequency * hit_point.z()
+            + 10.0 * self.noise.turbulance(&hit_point, self.octaves))
+        .sin();
         Vec3::new(1.0, 1.0, 1.0) * 0.5 * (1.0 + sine)
     }
 

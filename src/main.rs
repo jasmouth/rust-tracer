@@ -29,6 +29,7 @@ use hitable::moving_sphere::MovingSphere;
 use hitable::rectangles::{AxisAlignedBlock, XYRect, XZRect, YZRect};
 use hitable::sphere::Sphere;
 use hitable::transformations::{RotateY, Translate};
+use hitable::volumes::{ConstantMedium, VariableMedium};
 use material::materials::{Dielectric, DiffuseLight, Lambertian, Metal};
 use ray::Ray;
 use texture::textures::{CheckerTexture, ConstantTexture};
@@ -39,7 +40,7 @@ static MAX_DEPTH: i32 = 50;
 /// Calculates a final color value for a given Ray
 fn get_color(ray: &Ray, world: &BvhNode, depth: i32) -> Vec3 {
     let ref mut rec = HitRecord::new();
-    if world.hit(ray, 0.0001, FLOAT_MAX, rec) {
+    if world.hit(ray, 0.00001, FLOAT_MAX, rec) {
         let ((scattered_ray, attenuation, did_scatter), emitted_light) = match rec.material {
             Some(ref mat) => (
                 mat.scatter(ray, rec),
@@ -171,15 +172,16 @@ fn create_rand_scene(
 }
 
 fn create_cornell_box() -> BvhNode {
+    #![allow(dead_code)]
     let red = Lambertian {
         albedo: Box::new(ConstantTexture::new(Vec3::new(0.65, 0.05, 0.05))),
     };
     let white = Lambertian {
         albedo: Box::new(ConstantTexture::new(Vec3::new(0.73, 0.73, 0.73))),
-    };;
+    };
     let green = Lambertian {
         albedo: Box::new(ConstantTexture::new(Vec3::new(0.12, 0.45, 0.15))),
-    };;
+    };
     let light = DiffuseLight::new(Box::new(ConstantTexture::new(Vec3::new(5.0, 5.0, 5.0))));
     let left_wall = Box::new(YZRect {
         material: Box::new(green),
@@ -230,6 +232,29 @@ fn create_cornell_box() -> BvhNode {
         k: 554.0,
     });
 
+    let box_1 = Box::new(Translate::new(
+        Box::new(RotateY::new(
+            Box::new(AxisAlignedBlock::new(
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(165.0, 330.0, 165.0),
+                Box::new(white.clone()),
+            )),
+            15.0,
+        )),
+        Vec3::new(265.0, 0.0, 295.0),
+    ));
+    let box_2 = Box::new(Translate::new(
+        Box::new(RotateY::new(
+            Box::new(AxisAlignedBlock::new(
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(165.0, 165.0, 165.0),
+                Box::new(white.clone()),
+            )),
+            -18.0,
+        )),
+        Vec3::new(130.0, 0.0, 65.0),
+    ));
+
     let list: Vec<Box<Hitable>> = vec![
         Box::new(FlipNormals::new(left_wall)),
         right_wall,
@@ -237,30 +262,83 @@ fn create_cornell_box() -> BvhNode {
         floor,
         Box::new(FlipNormals::new(ceiling)),
         ceiling_light,
-        Box::new(Translate::new(
-            Box::new(RotateY::new(
-                Box::new(AxisAlignedBlock::new(
-                    Vec3::new(0.0, 0.0, 0.0),
-                    Vec3::new(165.0, 330.0, 165.0),
-                    Box::new(white.clone()),
-                )),
-                15.0,
-            )),
-            Vec3::new(265.0, 0.0, 295.0),
+        Box::new(ConstantMedium::new(
+            box_1,
+            0.01,
+            Box::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
         )),
-        Box::new(Translate::new(
-            Box::new(RotateY::new(
-                Box::new(AxisAlignedBlock::new(
-                    Vec3::new(0.0, 0.0, 0.0),
-                    Vec3::new(165.0, 165.0, 165.0),
-                    Box::new(white.clone()),
-                )),
-                -18.0,
-            )),
-            Vec3::new(130.0, 0.0, 65.0),
+        Box::new(ConstantMedium::new(
+            box_2,
+            0.01,
+            Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
         )),
     ];
 
+    BvhNode::new(&mut HitableList { list }, 0.0, 0.0)
+}
+
+fn create_debug_scene() -> BvhNode {
+    #![allow(dead_code)]
+    let red = Lambertian {
+        albedo: Box::new(ConstantTexture::new(Vec3::new(0.65, 0.05, 0.05))),
+    };
+    let white = Lambertian {
+        albedo: Box::new(ConstantTexture::new(Vec3::new(0.73, 0.73, 0.73))),
+    };
+    let light = DiffuseLight::new(Box::new(ConstantTexture::new(Vec3::new(4.0, 4.0, 4.0))));
+    let back_wall = Box::new(XYRect {
+        material: Box::new(white.clone()),
+        x_0: 0.0,
+        x_1: 555.0,
+        y_0: 0.0,
+        y_1: 250.0,
+        k: 555.0,
+    });
+    let ceiling_light = Box::new(XZRect {
+        material: Box::new(light),
+        x_0: 12.0,
+        x_1: 543.0,
+        z_0: 27.0,
+        z_1: 528.0,
+        k: 554.0,
+    });
+    let floor = Box::new(XZRect {
+        material: Box::new(red),
+        x_0: 0.0,
+        x_1: 555.0,
+        z_0: 0.0,
+        z_1: 555.0,
+        k: 0.0,
+    });
+    let ball_r = Box::new(Sphere {
+        center: Vec3::new(176.5, 125.0, 250.0),
+        radius: 100.0,
+        material: Box::new(Lambertian {
+            albedo: Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
+        }),
+    });
+    let ball_l = Box::new(Sphere {
+        center: Vec3::new(378.5, 125.0, 250.0),
+        radius: 100.0,
+        material: Box::new(Lambertian {
+            albedo: Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
+        }),
+    });
+    let list: Vec<Box<Hitable>> = vec![
+        ceiling_light,
+        Box::new(FlipNormals::new(back_wall)),
+        Box::new(ConstantMedium::new(
+            ball_r,
+            0.01,
+            Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
+        )),
+        Box::new(VariableMedium::new(
+            ball_l,
+            0.5,
+            Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
+        )),
+        floor,
+    ];
     BvhNode::new(&mut HitableList { list }, 0.0, 0.0)
 }
 
@@ -270,7 +348,7 @@ fn main() {
     // let numY = 1080;
     let num_x = 300;
     let num_y = 300;
-    let num_samples_per_thread = 125;
+    let num_samples_per_thread = 625;
     let num_samples = num_threads * num_samples_per_thread;
     let range = Uniform::new_inclusive(0.0, 1.0);
     let mut img_buff = image::ImageBuffer::new(num_x, num_y);
@@ -288,7 +366,8 @@ fn main() {
         1.0,
     );
     // let world = Arc::new(create_rand_scene(rand::thread_rng(), &range));
-    let world = Arc::new(create_cornell_box());
+    // let world = Arc::new(create_cornell_box());
+    let world = Arc::new(create_debug_scene());
 
     let progress_bar = ProgressBar::new((num_x * num_y) as u64);
     progress_bar.set_style(
