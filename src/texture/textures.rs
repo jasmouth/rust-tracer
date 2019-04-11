@@ -83,8 +83,8 @@ impl Texture for NoiseTexture {
         // NOTE: This currently results in a marble-like texture,
         // and there is not a way for consumers of this texture to
         // configure anything aside from the frequency
-        let sine = (self.frequency * hit_point.z()
-            + 10.0 * self.noise.turbulance(&hit_point, self.octaves))
+        let sine = (self.frequency * hit_point.x()
+            + 5.0 * self.noise.turbulance(&(*hit_point * self.frequency), self.octaves))
         .sin();
         Vec3::new(1.0, 1.0, 1.0) * 0.5 * (1.0 + sine)
     }

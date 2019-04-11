@@ -13,6 +13,7 @@ pub mod vec3;
 
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::distributions::{Distribution, Uniform};
+use rand::Rng;
 use std::f64::MAX as FLOAT_MAX;
 use std::fs::File;
 use std::path::Path;
@@ -32,7 +33,7 @@ use hitable::transformations::{RotateY, Translate};
 use hitable::volumes::{ConstantMedium, VariableMedium};
 use material::materials::{Dielectric, DiffuseLight, Lambertian, Metal};
 use ray::Ray;
-use texture::textures::{CheckerTexture, ConstantTexture};
+use texture::textures::{CheckerTexture, ConstantTexture, NoiseTexture};
 use vec3::Vec3;
 
 static MAX_DEPTH: i32 = 50;
@@ -342,32 +343,164 @@ fn create_debug_scene() -> BvhNode {
     BvhNode::new(&mut HitableList { list }, 0.0, 0.0)
 }
 
+fn create_final_scene() -> BvhNode {
+    let mut rng = rand::thread_rng();
+
+    // Ground definition
+    let num_boxes = 20;
+    let mut box_list: Vec<Box<Hitable>> = vec![];
+    let ground = Lambertian {
+        albedo: Box::new(ConstantTexture::new(Vec3::new(0.48, 0.83, 0.53))),
+    };
+    for i in 0..num_boxes {
+        for j in 0..num_boxes {
+            let width = 100.0;
+            let (x_0, y_0, z_0) = (-1000.0 + i as f64 * width, 0.0, -1000.0 + j as f64 * width);
+            let (x_1, y_1, z_1) = (x_0 + width, 100.0 * (0.01 + rng.gen::<f64>()), z_0 + width);
+            box_list.push(Box::new(AxisAlignedBlock::new(
+                Vec3::new(x_0, y_0, z_0),
+                Vec3::new(x_1, y_1, z_1),
+                Box::new(ground.clone()),
+            )));
+        }
+    }
+
+    // Light definition
+    let light = DiffuseLight::new(Box::new(ConstantTexture::new(Vec3::new(7.0, 7.0, 7.0))));
+    let ceiling_light = Box::new(XZRect {
+        material: Box::new(light),
+        x_0: 123.0,
+        x_1: 423.0,
+        z_0: 147.0,
+        z_1: 412.0,
+        k: 554.0,
+    });
+
+    // Sphere definitions
+    let fly_ball = Box::new(MovingSphere {
+        material: Box::new(Lambertian {
+            albedo: Box::new(ConstantTexture::new(Vec3::new(0.7, 0.3, 0.1))),
+        }),
+        start_center: Vec3::new(400.0, 400.0, 200.0),
+        end_center: Vec3::new(430.0, 400.0, 200.0),
+        start_time: 0.0,
+        end_time: 1.0,
+        radius: 50.0,
+    });
+    let glass_ball = Box::new(Sphere {
+        material: Box::new(Dielectric::new(1.5)),
+        center: Vec3::new(260.0, 150.0, 45.0),
+        radius: 50.0,
+    });
+    let metal_ball = Box::new(Sphere {
+        material: Box::new(Metal::new(
+            Box::new(ConstantTexture::new(Vec3::new(0.8, 0.8, 0.9))),
+            10.0,
+        )),
+        center: Vec3::new(0.0, 150.0, 145.0),
+        radius: 50.0,
+    });
+    let marble_ball = Box::new(Sphere {
+        material: Box::new(Lambertian {
+            albedo: Box::new(NoiseTexture::new(0.05, 7)),
+        }),
+        center: Vec3::new(220.0, 280.0, 300.0),
+        radius: 80.0,
+    });
+
+    // Volume definitions
+    let subsurface_boundary = Box::new(Sphere {
+        material: Box::new(Dielectric::new(1.5)),
+        center: Vec3::new(360.0, 150.0, 145.0),
+        radius: 70.0,
+    });
+    let subsurface_volume = Box::new(ConstantMedium::new(
+        subsurface_boundary.clone(),
+        0.2,
+        Box::new(ConstantTexture::new(Vec3::new(0.2, 0.4, 0.9))),
+    ));
+    let mist_boundary = Box::new(Sphere {
+        material: Box::new(Dielectric::new(1.5)), // arbitrary material
+        center: Vec3::new(0.0, 0.0, 0.0),
+        radius: 5000.0,
+    });
+    let mist = Box::new(ConstantMedium::new(
+        mist_boundary,
+        0.00005,
+        Box::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
+    ));
+
+    // Sphere-cube definition
+    let white = Lambertian {
+        albedo: Box::new(ConstantTexture::new(Vec3::new(0.73, 0.73, 0.73))),
+    };
+    let sphere_cube = (0..1000)
+        .map(|_| {
+            Box::new(Sphere {
+                material: Box::new(white.clone()),
+                center: Vec3::new(
+                    165.0 * rng.gen::<f64>(),
+                    165.0 * rng.gen::<f64>(),
+                    165.0 * rng.gen::<f64>(),
+                ),
+                radius: 10.0,
+            }) as Box<Hitable>
+        })
+        .collect::<Vec<Box<Hitable>>>();
+    let sphere_cube = Box::new(Translate::new(
+        Box::new(RotateY::new(
+            Box::new(BvhNode::new(
+                &mut HitableList { list: sphere_cube },
+                0.0,
+                1.0,
+            )),
+            15.0,
+        )),
+        Vec3::new(-100.0, 270.0, 395.0),
+    ));
+
+    let list: Vec<Box<Hitable>> = vec![
+        ceiling_light,
+        fly_ball,
+        glass_ball,
+        metal_ball,
+        marble_ball,
+        sphere_cube,
+        // Note that the combination of the dielectric sphere and the
+        // constant volume results in an emulation of a subsurface material.
+        subsurface_boundary,
+        subsurface_volume,
+        mist,
+        Box::new(BvhNode::new(&mut HitableList { list: box_list }, 0.0, 1.0)),
+    ];
+    BvhNode::new(&mut HitableList { list }, 0.0, 1.0)
+}
+
 fn main() {
     let num_threads: usize = num_cpus::get();
-    // let numX = 1080;
-    // let numY = 1080;
-    let num_x = 300;
-    let num_y = 300;
-    let num_samples_per_thread = 625;
+    let num_x = 800;
+    let num_y = 800;
+    let num_samples_per_thread = 1250;
     let num_samples = num_threads * num_samples_per_thread;
-    let range = Uniform::new_inclusive(0.0, 1.0);
+    let range = Uniform::new(0.0, 1.0);
     let mut img_buff = image::ImageBuffer::new(num_x, num_y);
-    let look_from = Vec3::new(277.5, 277.5, -800.0);
-    let look_at = Vec3::new(277.5, 277.5, 0.0);
+    let look_from = Vec3::new(478.0, 278.0, -600.0);
+    let look_at = Vec3::new(278.0, 278.0, 0.0);
     let camera = Camera::new(
         look_from,
         look_at,
-        Vec3::new(0.0, 1.0, 0.0),
-        40.0,
-        num_x as f64 / num_y as f64,
-        0.0,
-        10.0,
-        0.0,
-        1.0,
+        Vec3::new(0.0, 1.0, 0.0),    // Camera "up" direction
+        40.0,                        // Vertical FOV
+        num_x as f64 / num_y as f64, // Aspect ratio
+        0.0,                         // Aperture
+        10.0,                        // Focus Distance
+        0.0,                         // Shutter open time
+        1.0,                         // Shutter close time
     );
     // let world = Arc::new(create_rand_scene(rand::thread_rng(), &range));
     // let world = Arc::new(create_cornell_box());
-    let world = Arc::new(create_debug_scene());
+    // let world = Arc::new(create_debug_scene());
+    let world = Arc::new(create_final_scene());
 
     let progress_bar = ProgressBar::new((num_x * num_y) as u64);
     progress_bar.set_style(
