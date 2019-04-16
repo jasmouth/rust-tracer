@@ -30,7 +30,7 @@ use hitable::moving_sphere::MovingSphere;
 use hitable::rectangles::{AxisAlignedBlock, XYRect, XZRect, YZRect};
 use hitable::sphere::Sphere;
 use hitable::transformations::{RotateY, Translate};
-use hitable::volumes::{ConstantMedium, VariableMedium};
+use hitable::volumes::ConstantMedium;
 use material::materials::{Dielectric, DiffuseLight, Lambertian, Metal};
 use ray::Ray;
 use texture::textures::{CheckerTexture, ConstantTexture, NoiseTexture};
@@ -280,70 +280,166 @@ fn create_cornell_box() -> BvhNode {
 
 fn create_debug_scene() -> BvhNode {
     #![allow(dead_code)]
-    let red = Lambertian {
-        albedo: Box::new(ConstantTexture::new(Vec3::new(0.65, 0.05, 0.05))),
-    };
+    // Shared material defs
     let white = Lambertian {
-        albedo: Box::new(ConstantTexture::new(Vec3::new(0.73, 0.73, 0.73))),
+        albedo: Box::new(ConstantTexture::new(Vec3::new(0.9, 0.9, 0.9))),
     };
-    let light = DiffuseLight::new(Box::new(ConstantTexture::new(Vec3::new(4.0, 4.0, 4.0))));
-    let back_wall = Box::new(XYRect {
+
+    // Wall defs
+    let back_wall = Box::new(FlipNormals::new(Box::new(XYRect {
         material: Box::new(white.clone()),
-        x_0: 0.0,
-        x_1: 555.0,
+        x_0: -675.0,
+        x_1: 675.0,
         y_0: 0.0,
-        y_1: 250.0,
-        k: 555.0,
-    });
-    let ceiling_light = Box::new(XZRect {
-        material: Box::new(light),
-        x_0: 12.0,
-        x_1: 543.0,
-        z_0: 27.0,
-        z_1: 528.0,
-        k: 554.0,
+        y_1: 700.0,
+        k: 1000.0,
+    })));
+    let left_wall = Box::new(FlipNormals::new(Box::new(YZRect {
+        material: Box::new(white.clone()),
+        y_0: 0.0,
+        y_1: 375.0,
+        z_0: 50.0,
+        z_1: 650.0,
+        k: 700.0,
+    })));
+    let right_wall = Box::new(YZRect {
+        material: Box::new(white.clone()),
+        y_0: 0.0,
+        y_1: 375.0,
+        z_0: 50.0,
+        z_1: 650.0,
+        k: -700.0,
     });
     let floor = Box::new(XZRect {
-        material: Box::new(red),
-        x_0: 0.0,
-        x_1: 555.0,
-        z_0: 0.0,
-        z_1: 555.0,
+        material: Box::new(white.clone()),
+        x_0: -700.0,
+        x_1: 700.0,
+        z_0: -700.0,
+        z_1: 1000.0,
         k: 0.0,
     });
-    let ball_r = Box::new(Sphere {
-        center: Vec3::new(176.5, 125.0, 250.0),
-        radius: 100.0,
-        material: Box::new(Lambertian {
-            albedo: Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
-        }),
+    let ceiling_light = Box::new(XZRect {
+        material: Box::new(DiffuseLight::new(Box::new(ConstantTexture::new(
+            Vec3::new(48.5, 48.5, 48.5),
+        )))),
+        x_0: 1000.0,
+        x_1: 1600.0,
+        z_0: 200.0,
+        z_1: 500.0,
+        k: 2000.0,
     });
-    let ball_l = Box::new(Sphere {
-        center: Vec3::new(378.5, 125.0, 250.0),
+
+    // Sphere defs
+    let left_ball = Box::new(Sphere {
+        material: Box::new(white.clone()),
+        center: Vec3::new(275.0, 100.0, 350.0),
         radius: 100.0,
-        material: Box::new(Lambertian {
-            albedo: Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
-        }),
     });
+    let red_ball = Box::new(Sphere {
+        material: Box::new(Lambertian {
+            albedo: Box::new(ConstantTexture::new(Vec3::new(0.9, 0.05, 0.05))),
+        }),
+        center: Vec3::new(250.0, 45.0, 195.0),
+        radius: 45.0,
+    });
+    let center_ball = Box::new(Sphere {
+        material: Box::new(Dielectric::new(1.5)),
+        center: Vec3::new(0.0, 100.0, 350.0),
+        radius: 100.0,
+    });
+    let subsurface_volume = Box::new(ConstantMedium::new(
+        center_ball.clone(),
+        0.5,
+        Box::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
+    ));
+    let blue_ball = Box::new(Sphere {
+        material: Box::new(Lambertian {
+            albedo: Box::new(ConstantTexture::new(Vec3::new(0.05, 0.05, 0.9))),
+        }),
+        center: Vec3::new(0.0, 45.0, 195.0),
+        radius: 45.0,
+    });
+    let right_ball = Box::new(Sphere {
+        material: Box::new(Metal::new(
+            Box::new(ConstantTexture::new(Vec3::new(0.5, 0.5, 0.5))),
+            0_f64,
+        )),
+        center: Vec3::new(-275.0, 100.0, 350.0),
+        radius: 100.0,
+    });
+    let green_ball = Box::new(Sphere {
+        material: Box::new(Lambertian {
+            albedo: Box::new(ConstantTexture::new(Vec3::new(0.05, 0.9, 0.05))),
+        }),
+        center: Vec3::new(-250.0, 45.0, 195.0),
+        radius: 45.0,
+    });
+    let top_left_ball = Box::new(Sphere {
+        material: Box::new(Dielectric::new(1.5)),
+        center: Vec3::new(305.0, 375.0, 150.0),
+        radius: 50.0,
+    });
+    let top_center_ball = Box::new(Sphere {
+        material: Box::new(Dielectric::new(1.5)),
+        center: Vec3::new(0.0, 375.0, 150.0),
+        radius: 50.0,
+    });
+    let top_right_ball = Box::new(Sphere {
+        material: Box::new(Dielectric::new(1.5)),
+        center: Vec3::new(-305.0, 375.0, 150.0),
+        radius: 50.0,
+    });
+
+    // Platform defs
+    let left_plat = Box::new(AxisAlignedBlock::new(
+        Vec3::new(60.0, 0.5, 120.0),
+        Vec3::new(190.0, 15.0, 270.0),
+        Box::new(white.clone()),
+    ));
+    let left_plat_ball = Box::new(Sphere {
+        material: Box::new(Lambertian {
+            albedo: Box::new(ConstantTexture::new(Vec3::new(0.99, 0.99, 1.0))),
+        }),
+        center: Vec3::new(125.0, 70.0, 205.0),
+        radius: 50.0,
+    });
+    let right_plat = Box::new(AxisAlignedBlock::new(
+        Vec3::new(-190.0, 0.5, 120.0),
+        Vec3::new(-60.0, 15.0, 270.0),
+        Box::new(white.clone()),
+    ));
+    let right_plat_ball = Box::new(Sphere {
+        material: Box::new(Dielectric::new(1.5)),
+        center: Vec3::new(-125.0, 75.0, 205.0),
+        radius: 50.0,
+    });
+
     let list: Vec<Box<Hitable>> = vec![
         ceiling_light,
-        Box::new(FlipNormals::new(back_wall)),
-        Box::new(ConstantMedium::new(
-            ball_r,
-            0.01,
-            Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
-        )),
-        Box::new(VariableMedium::new(
-            ball_l,
-            0.5,
-            Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
-        )),
+        left_wall,
+        back_wall,
+        right_wall,
         floor,
+        left_ball,
+        red_ball,
+        subsurface_volume,
+        center_ball,
+        blue_ball,
+        right_ball,
+        green_ball,
+        top_left_ball,
+        top_center_ball,
+        top_right_ball,
+        left_plat,
+        left_plat_ball,
+        right_plat,
+        right_plat_ball,
     ];
-    BvhNode::new(&mut HitableList { list }, 0.0, 0.0)
+    BvhNode::new(&mut HitableList { list }, 0.0, 1.0)
 }
 
 fn create_final_scene() -> BvhNode {
+    #![allow(dead_code)]
     let mut rng = rand::thread_rng();
 
     // Ground definition
@@ -478,19 +574,19 @@ fn create_final_scene() -> BvhNode {
 
 fn main() {
     let num_threads: usize = num_cpus::get();
-    let num_x = 800;
-    let num_y = 800;
-    let num_samples_per_thread = 1250;
+    let num_x = 1000;
+    let num_y = 1000;
+    let num_samples_per_thread = 4096;
     let num_samples = num_threads * num_samples_per_thread;
     let range = Uniform::new(0.0, 1.0);
     let mut img_buff = image::ImageBuffer::new(num_x, num_y);
-    let look_from = Vec3::new(478.0, 278.0, -600.0);
-    let look_at = Vec3::new(278.0, 278.0, 0.0);
+    let look_from = Vec3::new(0.0, 300.0, -600.0);
+    let look_at = Vec3::new(0.0, 200.0, 0.0);
     let camera = Camera::new(
         look_from,
         look_at,
         Vec3::new(0.0, 1.0, 0.0),    // Camera "up" direction
-        40.0,                        // Vertical FOV
+        45.0,                        // Vertical FOV
         num_x as f64 / num_y as f64, // Aspect ratio
         0.0,                         // Aperture
         10.0,                        // Focus Distance
@@ -499,8 +595,8 @@ fn main() {
     );
     // let world = Arc::new(create_rand_scene(rand::thread_rng(), &range));
     // let world = Arc::new(create_cornell_box());
-    // let world = Arc::new(create_debug_scene());
-    let world = Arc::new(create_final_scene());
+    let world = Arc::new(create_debug_scene());
+    // let world = Arc::new(create_final_scene());
 
     let progress_bar = ProgressBar::new((num_x * num_y) as u64);
     progress_bar.set_style(
