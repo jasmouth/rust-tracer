@@ -9,6 +9,8 @@ While this began as a simple port/reimplementation of the above books, it has si
 * Support for rendering polygonal primitives and polygon meshes
 * Support for multi-threaded rendering
 
+[Gallery of Example Renders](./renders/README.md)
+
 ## Latest Render
 
 <img src="./output.png" title="Snapshot of the current progress" width="500">
