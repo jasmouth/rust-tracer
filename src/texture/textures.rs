@@ -1,3 +1,6 @@
+extern crate image;
+
+use image::GenericImageView;
 use texture::perlin::Perlin;
 use texture::texture::Texture;
 use vec3::Vec3;
@@ -84,9 +87,59 @@ impl Texture for NoiseTexture {
         // and there is not a way for consumers of this texture to
         // configure anything aside from the frequency
         let sine = (self.frequency * hit_point.x()
-            + 5.0 * self.noise.turbulance(&(*hit_point * self.frequency), self.octaves))
+            + 5.0
+                * self
+                    .noise
+                    .turbulance(*hit_point * self.frequency, self.octaves, 1.0)
+                    .abs())
         .sin();
         Vec3::new(1.0, 1.0, 1.0) * 0.5 * (1.0 + sine)
+    }
+
+    fn box_clone(&self) -> Box<Texture> {
+        Box::new((*self).clone())
+    }
+}
+
+/// A texture representing a loaded image
+#[derive(Clone)]
+pub struct ImageTexture {
+    data: Vec<u8>,
+    dimensions: (u32, u32),
+}
+
+impl ImageTexture {
+    pub fn new(image_path: &str) -> Self {
+        let img = image::open(image_path).unwrap();
+        ImageTexture {
+            data: img.raw_pixels(),
+            dimensions: img.dimensions(),
+        }
+    }
+}
+
+impl Texture for ImageTexture {
+    fn value(&self, u: f64, v: f64, _hit_point: &Vec3) -> Vec3 {
+        let (num_x, num_y) = self.dimensions;
+        let mut i: i32 = (u * num_x as f64) as i32;
+        let mut j: i32 = ((1.0 - v) * num_y as f64 - 0.0001) as i32;
+        if i < 0 {
+            i = 0;
+        } else if i > (num_x as i32 - 1) {
+            i = num_x as i32 - 1;
+        }
+        if j < 0 {
+            j = 0;
+        } else if j > (num_y as i32 - 1) {
+            j = num_y as i32 - 1;
+        }
+
+        let idx = (3 * i + 3 * num_x as i32 * j) as usize;
+        let r = self.data[idx] as f64 / 255.0;
+        let g = self.data[idx + 1] as f64 / 255.0;
+        let b = self.data[idx + 2] as f64 / 255.0;
+
+        Vec3::new(r, g, b)
     }
 
     fn box_clone(&self) -> Box<Texture> {

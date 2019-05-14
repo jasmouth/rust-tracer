@@ -133,16 +133,18 @@ impl Hitable for VariableMedium {
                 }
 
                 let ray_length = ray.direction.length();
+                let unit_length_direction = ray.direction / ray_length;
                 // The actual distance that the ray travels through the medium.
                 let dist_inside_boundary = (rec_2.t - rec_1.t) * ray_length;
                 let mut hit_distance = 0.0;
+                let mut rng = rand::thread_rng();
 
                 loop {
-                    let x = rand::thread_rng().gen::<f64>();
-                    let y = rand::thread_rng().gen::<f64>();
+                    let x = rng.gen::<f64>();
+                    let y = rng.gen::<f64>();
                     hit_distance += -(1.0 - x).ln() / self.max_density;
-                    let temp_hit_point = ray.origin + hit_distance * (ray.direction / ray_length);
-                    if self.noise_func.noise(&temp_hit_point) > y {
+                    let temp_hit_point = ray.origin + hit_distance * unit_length_direction;
+                    if y < self.noise_func.turbulance(temp_hit_point, 8, 256.0) / self.max_density {
                         break;
                     }
                 }

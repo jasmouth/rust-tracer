@@ -34,12 +34,11 @@ impl Perlin {
 
     /// Calculates the noise value at the given `hit_point` of a Ray
     pub fn noise(&self, hit_point: &Vec3) -> f64 {
-        let u = hit_point.x() - hit_point.x().floor();
-        let v = hit_point.y() - hit_point.y().floor();
-        let w = hit_point.z() - hit_point.z().floor();
-        let i = hit_point.x().floor() as i32;
-        let j = hit_point.y().floor() as i32;
-        let k = hit_point.z().floor() as i32;
+        let (x, y, z) = (hit_point.x(), hit_point.y(), hit_point.z());
+        let (x_flr, y_flr, z_flr) = (x.floor(), y.floor(), z.floor());
+
+        let (u, v, w) = (x - x_flr, y - y_flr, z - z_flr);
+        let (i, j, k) = (x_flr as i32, y_flr as i32, z_flr as i32);
         let mut c: [[[Vec3; 2]; 2]; 2] = [[[Vec3::new(0.0, 0.0, 0.0); 2]; 2]; 2];
         for di in 0..2 {
             for dj in 0..2 {
@@ -56,16 +55,21 @@ impl Perlin {
 
     /// Calculates a composite noise value by summing multiple noise
     /// values, up to a given `depth`
-    pub fn turbulance(&self, hit_point: &Vec3, depth: u8) -> f64 {
+    /// #### Arguments
+    /// - `hit_point`: The point at which to generate the noise value
+    /// - `depth`: The number of noise values that will be generated
+    /// - `weight`: The initial weight to be given to the noise values.
+    ///   - Note: The weight is halved for each subsequent noise value
+    ///   generated after the first. The weight is also used to jitter
+    ///   the hit_point, so a higher weight corresponds to a less unified
+    ///   noise pattern
+    pub fn turbulance(&self, hit_point: Vec3, depth: u8, mut weight: f64) -> f64 {
         let mut acc = 0.0;
-        let mut weight = 1.0;
-        let mut temp_point = *hit_point;
         for _ in 0..depth {
-            acc += weight * self.noise(&temp_point);
+            acc += weight * self.noise(&(hit_point / weight));
             weight *= 0.5;
-            temp_point *= 2.0;
         }
-        acc.abs()
+        acc
     }
 }
 
@@ -85,7 +89,7 @@ fn gen_perm() -> [u32; 256] {
     perm
 }
 
-/// Performs trilinear color interpolation
+/// Performs trilinear interpolation for smoothing the noise
 fn perlin_interpolate(c: [[[Vec3; 2]; 2]; 2], u: f64, v: f64, w: f64) -> f64 {
     let uu = u * u * (3.0 - 2.0 * u);
     let vv = v * v * (3.0 - 2.0 * v);
