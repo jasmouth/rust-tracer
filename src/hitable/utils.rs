@@ -64,7 +64,7 @@ pub fn refract(dir: &Vec3, norm: &Vec3, ni_over_nt: f64) -> Option<Vec3> {
     let unit_vec = unit_vector(*dir);
     let dt = dot(&unit_vec, norm);
     let discriminant = 1.0 - (ni_over_nt * ni_over_nt * (1.0 - dt * dt));
-    return if discriminant > 0.0 {
+    return if discriminant >= 0.0 {
         Some(ni_over_nt * (unit_vec - (*norm) * dt) - ((*norm) * discriminant.sqrt()))
     } else {
         None

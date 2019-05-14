@@ -4,6 +4,7 @@ pub mod hit_record;
 pub mod hitable;
 pub mod hitable_list;
 pub mod moving_sphere;
+pub mod polygon;
 pub mod rectangles;
 pub mod sphere;
 pub mod utils;

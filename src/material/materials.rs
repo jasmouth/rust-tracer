@@ -41,10 +41,11 @@ impl Material for Lambertian {
     }
 }
 
-/// A metallic surface. The fuzziness field dictates how glossy (or polished) the surface appears.
+/// A metallic surface. The fuzziness field dictates how polished the surface appears.
 #[derive(Clone)]
 pub struct Metal {
     pub albedo: Box<Texture>,
+    pub emittance_albedo: Box<Texture>,
     pub fuzziness: f64,
 }
 
@@ -52,6 +53,15 @@ impl Metal {
     pub fn new(albedo: Box<Texture>, fuzz: f64) -> Self {
         Metal {
             albedo,
+            emittance_albedo: Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
+            fuzziness: if fuzz < 1.0 { fuzz } else { 1.0 },
+        }
+    }
+
+    pub fn new_emitting(albedo: Box<Texture>, emittance_albedo: Box<Texture>, fuzz: f64) -> Self {
+        Metal {
+            albedo,
+            emittance_albedo,
             fuzziness: if fuzz < 1.0 { fuzz } else { 1.0 },
         }
     }
@@ -59,19 +69,23 @@ impl Metal {
 
 impl Material for Metal {
     fn scatter(&self, input_ray: &Ray, hit_record: &HitRecord) -> (Ray, Vec3, bool) {
-        let reflected_ray = utils::reflect(&unit_vector(input_ray.direction), &hit_record.normal);
         let scattered_ray = Ray::new(
             hit_record.hit_point,
-            reflected_ray + self.fuzziness * utils::random_point_in_unit_sphere(),
+            utils::reflect(&unit_vector(input_ray.direction), &hit_record.normal)
+                + self.fuzziness * utils::random_point_in_unit_sphere(),
             input_ray.time,
         );
         let attenuation = self
             .albedo
             .value(hit_record.u, hit_record.v, &hit_record.hit_point);
-        // If the length of the scattered ray in relation to the surface normal is <= 0,
+        // If the cosine of the angle between the scattered ray and the surface normal is <= 0,
         // the ray has been scattered under the object's surface.
         let did_scatter = dot(&scattered_ray.direction, &hit_record.normal) > 0.0;
         (scattered_ray, attenuation, did_scatter)
+    }
+
+    fn emit(&self, u: f64, v: f64, hit_point: &Vec3) -> Vec3 {
+        self.emittance_albedo.value(u, v, hit_point)
     }
 
     fn box_clone(&self) -> Box<Material> {
@@ -193,6 +207,75 @@ impl Material for Isotropic {
             .albedo
             .value(hit_record.u, hit_record.v, &hit_record.hit_point);
         (scattered_ray, attenuation, true)
+    }
+
+    fn box_clone(&self) -> Box<Material> {
+        Box::new((*self).clone())
+    }
+}
+
+/// A (simulated) glossy material.
+#[derive(Clone)]
+pub struct Glossy {
+    pub albedo: Box<Texture>,
+    pub specular_albedo: Box<Texture>,
+    /// The glossiness field dictates how sharp the specular highlights appear.
+    pub glossiness: f64,
+}
+
+impl Glossy {
+    pub fn new(albedo: Box<Texture>, gloss: f64) -> Self {
+        Glossy {
+            albedo,
+            specular_albedo: Box::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
+            glossiness: if gloss <= 1.0 && gloss >= 0.0 {
+                1.0 - gloss
+            } else {
+                0.0
+            },
+        }
+    }
+}
+
+impl Material for Glossy {
+    fn scatter(&self, input_ray: &Ray, hit_record: &HitRecord) -> (Ray, Vec3, bool) {
+        let attenuation;
+        let scattered_ray;
+        if Uniform::new(0.0, 1.0).sample(&mut rand::thread_rng())
+            <= utils::schlick_approx(
+                -dot(&input_ray.direction, &hit_record.normal) / input_ray.direction.length(),
+                1.75,
+            )
+        {
+            // Specular Ray
+            scattered_ray = Ray::new(
+                hit_record.hit_point,
+                utils::reflect(&unit_vector(input_ray.direction), &hit_record.normal)
+                    + self.glossiness * utils::random_point_in_unit_sphere(),
+                input_ray.time,
+            );
+            attenuation =
+                self.specular_albedo
+                    .value(hit_record.u, hit_record.v, &hit_record.hit_point);
+        } else {
+            // Diffuse Ray
+            scattered_ray = Ray::new(
+                hit_record.hit_point,
+                hit_record.hit_point + hit_record.normal + utils::random_point_in_unit_sphere()
+                    - hit_record.hit_point,
+                input_ray.time,
+            );
+            attenuation = self
+                .albedo
+                .value(hit_record.u, hit_record.v, &hit_record.hit_point);
+        }
+        (
+            scattered_ray,
+            attenuation,
+            // If the cosine of the angle between the scattered ray and the surface normal is <= 0,
+            // the ray has been scattered under the object's surface.
+            dot(&scattered_ray.direction, &hit_record.normal) > 0.0,
+        )
     }
 
     fn box_clone(&self) -> Box<Material> {

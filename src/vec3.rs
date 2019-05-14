@@ -21,6 +21,10 @@ impl Vec3 {
         Vec3 { e: [e0, e1, e2] }
     }
 
+    pub fn from_vec(vec: Vec<f64>) -> Self {
+        Vec3 { e: [vec[0], vec[1], vec[2]] }
+    }
+
     /// Converts the vector into a unit-length version of itself
     pub fn make_unit_vector(&mut self) {
         let k = 1.0_f64

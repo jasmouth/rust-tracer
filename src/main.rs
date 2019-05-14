@@ -2,6 +2,7 @@ extern crate image;
 extern crate indicatif;
 extern crate num_cpus;
 extern crate rand;
+extern crate regex;
 
 pub mod bounding_boxes;
 pub mod camera;
@@ -14,8 +15,10 @@ pub mod vec3;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::distributions::{Distribution, Uniform};
 use rand::Rng;
+use regex::Regex;
 use std::f64::MAX as FLOAT_MAX;
 use std::fs::File;
+use std::io::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread;
@@ -27,13 +30,15 @@ use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
 use hitable::hitable_list::HitableList;
 use hitable::moving_sphere::MovingSphere;
+use hitable::polygon::{Polygon, PolygonMesh};
 use hitable::rectangles::{AxisAlignedBlock, XYRect, XZRect, YZRect};
 use hitable::sphere::Sphere;
 use hitable::transformations::{RotateY, Translate};
 use hitable::volumes::{ConstantMedium, VariableMedium};
-use material::materials::{Dielectric, DiffuseLight, Lambertian, Metal};
+use material::material::Material;
+use material::materials::{Dielectric, DiffuseLight, Glossy, Lambertian, Metal};
 use ray::Ray;
-use texture::textures::{CheckerTexture, ConstantTexture, ImageTexture, NoiseTexture};
+use texture::textures::{CheckerTexture, ConstantTexture, NoiseTexture};
 use vec3::Vec3;
 
 static MAX_DEPTH: i32 = 5;
@@ -183,30 +188,38 @@ fn create_cornell_box() -> BvhNode {
     let green = Lambertian {
         albedo: Box::new(ConstantTexture::new(Vec3::new(0.12, 0.45, 0.15))),
     };
-    let light = DiffuseLight::new(Box::new(ConstantTexture::new(Vec3::new(5.0, 5.0, 5.0))));
+    let light = DiffuseLight::new(Box::new(ConstantTexture::new(Vec3::new(2.0, 2.0, 2.0))));
     let left_wall = Box::new(YZRect {
         material: Box::new(green),
         y_0: 0.0,
-        y_1: 555.0,
-        z_0: 0.0,
-        z_1: 555.0,
-        k: 555.0,
+        y_1: 20.0,
+        z_0: -10.0,
+        z_1: 10.0,
+        k: -10.0,
     });
     let right_wall = Box::new(YZRect {
-        material: Box::new(red),
+        material: Box::new(red.clone()),
         y_0: 0.0,
-        y_1: 555.0,
-        z_0: 0.0,
-        z_1: 555.0,
-        k: 0.0,
+        y_1: 20.0,
+        z_0: -10.0,
+        z_1: 10.0,
+        k: 10.0,
     });
     let back_wall = Box::new(XYRect {
         material: Box::new(white.clone()),
-        x_0: 0.0,
-        x_1: 555.0,
+        x_0: -10.0,
+        x_1: 10.0,
         y_0: 0.0,
-        y_1: 555.0,
-        k: 555.0,
+        y_1: 20.0,
+        k: 10.0,
+    });
+    let front_wall = Box::new(XYRect {
+        material: Box::new(white.clone()),
+        x_0: -10.0,
+        x_1: 10.0,
+        y_0: 0.0,
+        y_1: 20.0,
+        k: -10.0,
     });
     let _front_light = Box::new(XYRect {
         material: Box::new(DiffuseLight::new(Box::new(ConstantTexture::new(
@@ -220,74 +233,35 @@ fn create_cornell_box() -> BvhNode {
     });
     let floor = Box::new(XZRect {
         material: Box::new(white.clone()),
-        x_0: 0.0,
-        x_1: 555.0,
-        z_0: 0.0,
-        z_1: 555.0,
+        x_0: -10.0,
+        x_1: 10.0,
+        z_0: -10.0,
+        z_1: 10.0,
         k: 0.0,
     });
     let ceiling = Box::new(XZRect {
         material: Box::new(white.clone()),
-        x_0: 0.0,
-        x_1: 555.0,
-        z_0: 0.0,
-        z_1: 555.0,
-        k: 555.0,
+        x_0: -10.0,
+        x_1: 10.0,
+        z_0: -10.0,
+        z_1: 10.0,
+        k: 20.0,
     });
     let ceiling_light = Box::new(XZRect {
-        material: Box::new(light),
-        x_0: 112.0,
-        x_1: 443.0,
-        z_0: 127.0,
-        z_1: 428.0,
-        k: 554.0,
+        material: Box::new(light.clone()),
+        x_0: -7.5,
+        x_1: 7.5,
+        z_0: -7.5,
+        z_1: 7.5,
+        k: 20.0,
     });
 
-    /* let box_1 = Box::new(Translate::new(
-        Box::new(RotateY::new(
-            Box::new(AxisAlignedBlock::new(
-                Vec3::new(0.0, 0.0, 0.0),
-                Vec3::new(165.0, 330.0, 165.0),
-                Box::new(white.clone()),
-            )),
-            15.0,
-        )),
-        Vec3::new(265.0, 0.0, 295.0),
-    ));
-    let box_2 = Box::new(Translate::new(
-        Box::new(RotateY::new(
-            Box::new(AxisAlignedBlock::new(
-                Vec3::new(0.0, 0.0, 0.0),
-                Vec3::new(165.0, 165.0, 165.0),
-                Box::new(white.clone()),
-            )),
-            -18.0,
-        )),
-        Vec3::new(130.0, 0.0, 65.0),
-    )); */
-
-    let _earth = Box::new(Sphere {
-        material: Box::new(Lambertian {
-            albedo: Box::new(ImageTexture::new("textures/earth_2.jpg")),
+    let pedestal = Box::new(AxisAlignedBlock::new(
+        Vec3::new(-2.0, 0.0, -3.0),
+        Vec3::new(2.0, 7.95, 1.0),
+        Box::new(Lambertian {
+            albedo: Box::new(ConstantTexture::new(Vec3::new(0.396, 0.263, 0.129))),
         }),
-        center: Vec3::new(278.0, 258.0, 278.0),
-        radius: 150.0,
-    });
-
-    let outer_subsurface_boundary = Box::new(Sphere {
-        material: Box::new(Dielectric::new(1.5)),
-        center: Vec3::new(278.0, 258.0, 278.0),
-        radius: 150.0,
-    });
-    let subsurface_boundary = Box::new(Sphere {
-        material: Box::new(Dielectric::new(1.5)),
-        center: Vec3::new(278.0, 258.0, 278.0),
-        radius: 145.0,
-    });
-    let subsurface_volume = Box::new(VariableMedium::new(
-        subsurface_boundary.clone(),
-        0.025,
-        Box::new(ConstantTexture::new(Vec3::new(0.75, 0.75, 0.75))),
     ));
     let _ball_light = Box::new(Sphere {
         material: Box::new(DiffuseLight::new(Box::new(ConstantTexture::new(
@@ -297,29 +271,27 @@ fn create_cornell_box() -> BvhNode {
         radius: 35.0,
     });
 
+    let teapot = parse_obj_file(
+        String::from("object-files/teapot.obj"),
+        Box::new(Dielectric::new(1.5)),
+    );
+    let teapot_subsurface = Box::new(ConstantMedium::new(
+        teapot.clone(),
+        10.0,
+        Box::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 0.941))),
+    ));
     let list: Vec<Box<Hitable>> = vec![
-        Box::new(FlipNormals::new(left_wall)),
-        right_wall,
+        left_wall,
+        Box::new(FlipNormals::new(right_wall)),
         Box::new(FlipNormals::new(back_wall)),
+        front_wall,
         floor,
         Box::new(FlipNormals::new(ceiling)),
-        outer_subsurface_boundary,
-        Box::new(FlipNormals::new(subsurface_boundary)),
-        subsurface_volume,
-        // ball_light,
+        // _ball_light,
         ceiling_light,
-        // front_light,
-        // earth,
-        // Box::new(ConstantMedium::new(
-        //     box_1,
-        //     0.01,
-        //     Box::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
-        // )),
-        // Box::new(ConstantMedium::new(
-        //     box_2,
-        //     0.01,
-        //     Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
-        // )),
+        Box::new(Translate::new(teapot, Vec3::new(0.0, 8.0, -1.5))),
+        Box::new(Translate::new(teapot_subsurface, Vec3::new(0.0, 8.0, -1.5))),
+        pedestal,
     ];
 
     BvhNode::new(&mut HitableList { list }, 0.0, 0.0)
@@ -328,168 +300,87 @@ fn create_cornell_box() -> BvhNode {
 fn create_debug_scene() -> BvhNode {
     #![allow(dead_code)]
     // Shared material defs
-    let white = Lambertian {
-        albedo: Box::new(ConstantTexture::new(Vec3::new(0.9, 0.9, 0.9))),
+    let light_blue = Lambertian {
+        albedo: Box::new(ConstantTexture::new(Vec3::new(0.5304, 0.6152, 0.7688))),
     };
 
     // Wall defs
     let back_wall = Box::new(FlipNormals::new(Box::new(XYRect {
-        material: Box::new(white.clone()),
-        x_0: -675.0,
-        x_1: 675.0,
+        material: Box::new(light_blue.clone()),
+        x_0: -700.0,
+        x_1: 700.0,
         y_0: 0.0,
-        y_1: 700.0,
+        y_1: 800.0,
         k: 1000.0,
     })));
     let front_wall = Box::new(XYRect {
-        material: Box::new(white.clone()),
-        x_0: -675.0,
-        x_1: 675.0,
+        material: Box::new(light_blue.clone()),
+        x_0: -700.0,
+        x_1: 700.0,
         y_0: 0.0,
-        y_1: 700.0,
+        y_1: 800.0,
         k: -700.0,
     });
     let left_wall = Box::new(FlipNormals::new(Box::new(YZRect {
-        material: Box::new(white.clone()),
+        material: Box::new(light_blue.clone()),
         y_0: 0.0,
-        y_1: 375.0,
-        z_0: 50.0,
-        z_1: 650.0,
+        y_1: 800.0,
+        z_0: -700.0,
+        z_1: 1000.0,
         k: 700.0,
     })));
     let right_wall = Box::new(YZRect {
-        material: Box::new(white.clone()),
+        material: Box::new(light_blue.clone()),
         y_0: 0.0,
-        y_1: 375.0,
-        z_0: 50.0,
-        z_1: 650.0,
+        y_1: 800.0,
+        z_0: -700.0,
+        z_1: 1000.0,
         k: -700.0,
     });
     let floor = Box::new(XZRect {
-        material: Box::new(white.clone()),
+        material: Box::new(light_blue.clone()),
         x_0: -700.0,
         x_1: 700.0,
         z_0: -700.0,
         z_1: 1000.0,
         k: 0.0,
     });
+    let ceiling = Box::new(FlipNormals::new(Box::new(XZRect {
+        material: Box::new(light_blue.clone()),
+        x_0: -700.0,
+        x_1: 700.0,
+        z_0: -700.0,
+        z_1: 1000.0,
+        k: 800.0,
+    })));
     let ceiling_light = Box::new(XZRect {
         material: Box::new(DiffuseLight::new(Box::new(ConstantTexture::new(
-            Vec3::new(35.0, 35.0, 35.0),
+            Vec3::new(7.5, 7.5, 7.5),
         )))),
-        x_0: 1000.0,
-        x_1: 1600.0,
+        x_0: 100.0,
+        x_1: 700.0,
         z_0: 200.0,
         z_1: 500.0,
-        k: 1200.0,
+        k: 800.0,
     });
 
-    // Sphere defs
-    /* let left_ball = Box::new(Sphere {
-        material: Box::new(white.clone()),
-        center: Vec3::new(275.0, 100.0, 350.0),
-        radius: 100.0,
-    });
-    let red_ball = Box::new(Sphere {
-        material: Box::new(Lambertian {
-            albedo: Box::new(ConstantTexture::new(Vec3::new(0.9, 0.05, 0.05))),
-        }),
-        center: Vec3::new(250.0, 45.0, 195.0),
-        radius: 45.0,
-    });
-    let center_ball = Box::new(Sphere {
-        material: Box::new(Dielectric::new(1.5)),
-        center: Vec3::new(0.0, 100.0, 350.0),
-        radius: 100.0,
-    });
-    let subsurface_volume = Box::new(ConstantMedium::new(
-        center_ball.clone(),
-        0.5,
-        Box::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
-    ));
-    let blue_ball = Box::new(Sphere {
-        material: Box::new(Lambertian {
-            albedo: Box::new(ConstantTexture::new(Vec3::new(0.05, 0.05, 0.9))),
-        }),
-        center: Vec3::new(0.0, 45.0, 195.0),
-        radius: 45.0,
-    });
-    let right_ball = Box::new(Sphere {
-        material: Box::new(Metal::new(
-            Box::new(ConstantTexture::new(Vec3::new(0.5, 0.5, 0.5))),
-            0_f64,
+    let teapot = parse_obj_file(
+        String::from("object-files/teapot.obj"),
+        Box::new(Glossy::new(
+            Box::new(ConstantTexture::new(Vec3::new(0.8, 0.8, 0.7528))),
+            0.5,
         )),
-        center: Vec3::new(-275.0, 100.0, 350.0),
-        radius: 100.0,
-    });
-    let green_ball = Box::new(Sphere {
-        material: Box::new(Lambertian {
-            albedo: Box::new(ConstantTexture::new(Vec3::new(0.05, 0.9, 0.05))),
-        }),
-        center: Vec3::new(-250.0, 45.0, 195.0),
-        radius: 45.0,
-    });
-    let top_left_ball = Box::new(Sphere {
-        material: Box::new(Dielectric::new(1.5)),
-        center: Vec3::new(305.0, 375.0, 150.0),
-        radius: 50.0,
-    });
-    let top_center_ball = Box::new(Sphere {
-        material: Box::new(Dielectric::new(1.5)),
-        center: Vec3::new(0.0, 375.0, 150.0),
-        radius: 50.0,
-    });
-    let top_right_ball = Box::new(Sphere {
-        material: Box::new(Dielectric::new(1.5)),
-        center: Vec3::new(-305.0, 375.0, 150.0),
-        radius: 50.0,
-    }); */
-
-    // Platform defs
-    /* let left_plat = Box::new(AxisAlignedBlock::new(
-        Vec3::new(60.0, 0.5, 120.0),
-        Vec3::new(190.0, 15.0, 270.0),
-        Box::new(white.clone()),
-    ));
-    let left_plat_ball = Box::new(Sphere {
-        material: Box::new(Lambertian {
-            albedo: Box::new(ConstantTexture::new(Vec3::new(0.99, 0.99, 1.0))),
-        }),
-        center: Vec3::new(125.0, 70.0, 205.0),
-        radius: 50.0,
-    });
-    let right_plat = Box::new(AxisAlignedBlock::new(
-        Vec3::new(-190.0, 0.5, 120.0),
-        Vec3::new(-60.0, 15.0, 270.0),
-        Box::new(white.clone()),
-    ));
-    let right_plat_ball = Box::new(Sphere {
-        material: Box::new(Dielectric::new(1.5)),
-        center: Vec3::new(-125.0, 75.0, 205.0),
-        radius: 50.0,
-    }); */
+    );
 
     let list: Vec<Box<Hitable>> = vec![
+        ceiling,
         ceiling_light,
         left_wall,
         back_wall,
         front_wall,
         right_wall,
         floor,
-        // left_ball,
-        // red_ball,
-        // subsurface_volume,
-        // center_ball,
-        // blue_ball,
-        // right_ball,
-        // green_ball,
-        // top_left_ball,
-        // top_center_ball,
-        // top_right_ball,
-        // left_plat,
-        // left_plat_ball,
-        // right_plat,
-        // right_plat_ball,
+        teapot,
     ];
     BvhNode::new(&mut HitableList { list }, 0.0, 1.0)
 }
@@ -628,21 +519,169 @@ fn create_final_scene() -> BvhNode {
     BvhNode::new(&mut HitableList { list }, 0.0, 1.0)
 }
 
+/// Recreates the "wada2" scene from smallpt (http://www.kevinbeason.com/smallpt/)
+///
+/// Note: The MAX_DEPTH variable needs to be increased (~50?) for this to properly render
+fn wada() -> BvhNode {
+    let radius = 120.0;
+    let theta = 30.0 * std::f64::consts::PI / 180.0;
+    let distance = radius / theta.cos();
+    let color = Vec3::new(0.275, 0.612, 0.949);
+
+    let list: Vec<Box<Hitable>> = vec![
+        Box::new(FlipNormals::new(Box::new(Sphere {
+            radius: 2.0 * 2.0 * radius * 2.0 * (2_f64 / 3_f64).sqrt()
+                - radius * 2.0 * (2_f64 / 3_f64).sqrt() / 3.0,
+            center: Vec3::new(50.0, 28.0, 62.0)
+                + Vec3::new(0.0, 0.0, -radius * 2.0 * (2_f64 / 3_f64).sqrt() / 3.0),
+            material: Box::new(Metal::new(
+                Box::new(ConstantTexture::new(Vec3::new(0.5, 0.5, 0.5))),
+                0.0,
+            )),
+        }))),
+        Box::new(Sphere {
+            radius,
+            center: Vec3::new(50.0, 28.0, 62.0)
+                + Vec3::new(0.0, 0.0, -1.0) * radius * 2.0 * (2_f64 / 3_f64).sqrt(),
+            material: Box::new(Metal::new(
+                Box::new(ConstantTexture::new(Vec3::new(0.996, 0.996, 0.996))),
+                0.0,
+            )),
+        }),
+        Box::new(Sphere {
+            radius,
+            center: Vec3::new(50.0, 28.0, 62.0) + Vec3::new(0.0, -1.0, 0.0) * distance,
+            material: Box::new(Metal::new_emitting(
+                Box::new(ConstantTexture::new(Vec3::new(0.996, 0.996, 0.996))),
+                Box::new(ConstantTexture::new(color * 6e-2)),
+                0.0,
+            )),
+        }),
+        Box::new(Sphere {
+            radius,
+            center: Vec3::new(50.0, 28.0, 62.0)
+                + Vec3::new(-(theta.cos()), theta.sin(), 0.0) * distance,
+            material: Box::new(Metal::new_emitting(
+                Box::new(ConstantTexture::new(Vec3::new(0.996, 0.996, 0.996))),
+                Box::new(ConstantTexture::new(color * 6e-2)),
+                0.0,
+            )),
+        }),
+        Box::new(Sphere {
+            radius,
+            center: Vec3::new(50.0, 28.0, 62.0)
+                + Vec3::new(theta.cos(), theta.sin(), 0.0) * distance,
+            material: Box::new(Metal::new_emitting(
+                Box::new(ConstantTexture::new(Vec3::new(0.996, 0.996, 0.996))),
+                Box::new(ConstantTexture::new(color * 6e-2)),
+                0.0,
+            )),
+        }),
+    ];
+    BvhNode::new(&mut HitableList { list }, 0.0, 0.0)
+}
+
+/// Provides primitive ability for parsing an OBJ file.
+fn parse_obj_file(file_name: String, material: Box<Material>) -> Box<Hitable> {
+    let path = &Path::new(&file_name);
+    match File::open(path) {
+        Ok(mut file) => {
+            let mut data = String::new();
+            file.read_to_string(&mut data)
+                .expect("Could not read data from file!");
+            let mut vertices: Vec<Vec3> = vec![];
+            let mut vertex_normals: Vec<Vec3> = vec![];
+            let mut poly_list: Vec<Box<Hitable>> = vec![];
+            let reg = Regex::new(r"//(.+)").unwrap();
+            data.lines().for_each(|line: &str| {
+                if line.starts_with("v ") {
+                    let vec = line
+                        .split_whitespace()
+                        .into_iter()
+                        .filter_map(|v: &str| v.parse::<f64>().ok())
+                        .collect::<Vec<f64>>();
+                    let vertex = Vec3::from_vec(vec);
+                    vertices.push(vertex);
+                } else if line.starts_with("vn ") {
+                    let normal = line
+                        .split_whitespace()
+                        .into_iter()
+                        .filter_map(|v: &str| v.parse::<f64>().ok())
+                        .collect::<Vec<f64>>();
+                    let vert_normal = Vec3::from_vec(normal);
+                    vertex_normals.push(vert_normal);
+                } else if line.starts_with("f ") {
+                    let points = line
+                        .split_whitespace()
+                        .into_iter()
+                        .filter_map(|v: &str| {
+                            if v.contains("//") {
+                                reg.replace(v, "").parse::<usize>().ok()
+                            } else {
+                                v.parse::<usize>().ok()
+                            }
+                        })
+                        .map(|i| vertices[i - 1])
+                        .collect::<Vec<Vec3>>();
+                    let normals = line
+                        .split_whitespace()
+                        .into_iter()
+                        .filter_map(|v: &str| {
+                            if v.contains("//") {
+                                reg.captures(v)
+                                    .unwrap()
+                                    .get(1)
+                                    .unwrap()
+                                    .as_str()
+                                    .parse::<usize>()
+                                    .ok()
+                            } else {
+                                None
+                            }
+                        })
+                        .map(|i| vertex_normals[i - 1])
+                        .collect::<Vec<Vec3>>();
+                    // If a face is defined by more than 3 points, break it into a triangle fan
+                    for n in 0..=(points.len() - 3) {
+                        let mut face = Box::new(Polygon::new(
+                            vec![points[0], points[n + 1], points[n + 2]],
+                            material.clone(),
+                        ));
+                        if !normals.is_empty() {
+                            face.vertex_normals =
+                                Some(vec![normals[0], normals[n + 1], normals[n + 2]]);
+                        }
+                        poly_list.push(face);
+                    }
+                }
+            });
+            Box::new(PolygonMesh::new(poly_list))
+        }
+        Err(e) => {
+            println!("Failed to open file: {:?}", e);
+            Box::new(PolygonMesh::new(vec![]))
+        }
+    }
+}
+
 fn main() {
     let num_threads: usize = num_cpus::get() - 1;
-    let num_x = 800;
-    let num_y = 800;
-    let num_samples_per_thread = 1428;
+    // let num_x = 350;
+    // let num_y = 350;
+    // let num_samples_per_thread = 572;
+    let num_x = 1024;
+    let num_y = 768;
+    let num_samples_per_thread = 1;
     let num_samples = num_threads * num_samples_per_thread;
     let range = Uniform::new(0.0, 1.0);
     let mut img_buff = image::ImageBuffer::new(num_x, num_y);
-    let look_from = Vec3::new(478.0, 278.0, -600.0);
-    let look_at = Vec3::new(278.0, 278.0, 0.0);
+    let look_from = Vec3::new(50.0, 52.0, 295.6);
+    let look_in = Vec3::new(0.0, -0.042612, -1.0);
     let camera = Camera::new(
-        look_from,
-        look_at,
+        look_from,                   // Camera origin
+        look_in,                     // Camera view direction
         Vec3::new(0.0, 1.0, 0.0),    // Camera "up" direction
-        40.0,                        // Vertical FOV
+        30.0,                        // Vertical FOV
         num_x as f64 / num_y as f64, // Aspect ratio
         0.0,                         // Aperture
         10.0,                        // Focus Distance
@@ -652,7 +691,8 @@ fn main() {
     // let world = Arc::new(create_rand_scene(rand::thread_rng(), &range));
     // let world = Arc::new(create_cornell_box());
     // let world = Arc::new(create_debug_scene());
-    let world = Arc::new(create_final_scene());
+    // let world = Arc::new(create_final_scene());
+    let world = Arc::new(wada());
 
     let progress_bar = ProgressBar::new((num_x * num_y) as u64);
     progress_bar.set_style(

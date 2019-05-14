@@ -20,7 +20,7 @@ impl Camera {
     /// Creates a new camera.
     /// #### Arguments:
     /// - `look_from`: The point from which to center the camera
-    /// - `look_at`: The point at which the camera is aimed
+    /// - `look_in`: The *direction* in which the camera is aimed
     /// - `view_up`: The "up" direction of the camera
     /// - `vert_fov`: The vertical field of view in degrees
     /// - `aspect_ratio`: Aspect ratio to use for the camera
@@ -30,7 +30,7 @@ impl Camera {
     /// - `shutter_close_time`: Point of time at which the camera shutter closes
     pub fn new(
         look_from: Vec3,
-        look_at: Vec3,
+        look_in: Vec3,
         view_up: Vec3,
         vert_fov: f64,
         aspect_ratio: f64,
@@ -42,7 +42,7 @@ impl Camera {
         let theta = vert_fov * std::f64::consts::PI / 180.0;
         let half_height = (theta / 2.0).tan();
         let half_width = aspect_ratio * half_height;
-        let w = unit_vector(look_from - look_at);
+        let w = unit_vector(-look_in);
         let u = unit_vector(cross(&view_up, &w));
         let v = cross(&w, &u);
         Camera {
