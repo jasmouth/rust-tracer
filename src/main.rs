@@ -2,7 +2,7 @@ extern crate image;
 extern crate indicatif;
 extern crate num_cpus;
 extern crate rand;
-extern crate regex;
+extern crate tobj;
 
 pub mod bounding_boxes;
 pub mod camera;
@@ -15,10 +15,8 @@ pub mod vec3;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::distributions::{Distribution, Uniform};
 use rand::Rng;
-use regex::Regex;
 use std::f64::MAX as FLOAT_MAX;
 use std::fs::File;
-use std::io::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread;
@@ -36,12 +34,12 @@ use hitable::sphere::Sphere;
 use hitable::transformations::{RotateY, Translate};
 use hitable::volumes::{ConstantMedium, VariableMedium};
 use material::material::Material;
-use material::materials::{Dielectric, DiffuseLight, Glossy, Lambertian, Metal};
+use material::materials::{Dielectric, DiffuseLight, Lambertian, Metal};
 use ray::Ray;
 use texture::textures::{CheckerTexture, ConstantTexture, NoiseTexture};
 use vec3::Vec3;
 
-static MAX_DEPTH: i32 = 5;
+static MAX_DEPTH: i32 = 50;
 
 /// Calculates a final color value for a given Ray
 fn get_color(ray: &Ray, world: &BvhNode, depth: i32) -> Vec3 {
@@ -263,23 +261,11 @@ fn create_cornell_box() -> BvhNode {
             albedo: Box::new(ConstantTexture::new(Vec3::new(0.396, 0.263, 0.129))),
         }),
     ));
-    let _ball_light = Box::new(Sphere {
-        material: Box::new(DiffuseLight::new(Box::new(ConstantTexture::new(
-            Vec3::new(1.75, 1.75, 1.75),
-        )))),
-        center: Vec3::new(278.0, 258.0, 278.0),
-        radius: 35.0,
-    });
 
-    let teapot = parse_obj_file(
-        String::from("object-files/teapot.obj"),
-        Box::new(Dielectric::new(1.5)),
+    let teapot = load_obj_file(
+        &Path::new("object-files/teapot.obj"),
+        Box::new(Dielectric::new(1.54)),
     );
-    let teapot_subsurface = Box::new(ConstantMedium::new(
-        teapot.clone(),
-        10.0,
-        Box::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 0.941))),
-    ));
     let list: Vec<Box<Hitable>> = vec![
         left_wall,
         Box::new(FlipNormals::new(right_wall)),
@@ -287,10 +273,8 @@ fn create_cornell_box() -> BvhNode {
         front_wall,
         floor,
         Box::new(FlipNormals::new(ceiling)),
-        // _ball_light,
         ceiling_light,
-        Box::new(Translate::new(teapot, Vec3::new(0.0, 8.0, -1.5))),
-        Box::new(Translate::new(teapot_subsurface, Vec3::new(0.0, 8.0, -1.5))),
+        Box::new(Translate::new(Box::new(teapot), Vec3::new(0.0, 8.0, -1.5))),
         pedestal,
     ];
 
@@ -299,89 +283,22 @@ fn create_cornell_box() -> BvhNode {
 
 fn create_debug_scene() -> BvhNode {
     #![allow(dead_code)]
-    // Shared material defs
-    let light_blue = Lambertian {
-        albedo: Box::new(ConstantTexture::new(Vec3::new(0.5304, 0.6152, 0.7688))),
-    };
-
-    // Wall defs
-    let back_wall = Box::new(FlipNormals::new(Box::new(XYRect {
-        material: Box::new(light_blue.clone()),
-        x_0: -700.0,
-        x_1: 700.0,
-        y_0: 0.0,
-        y_1: 800.0,
-        k: 1000.0,
-    })));
-    let front_wall = Box::new(XYRect {
-        material: Box::new(light_blue.clone()),
-        x_0: -700.0,
-        x_1: 700.0,
-        y_0: 0.0,
-        y_1: 800.0,
-        k: -700.0,
-    });
-    let left_wall = Box::new(FlipNormals::new(Box::new(YZRect {
-        material: Box::new(light_blue.clone()),
-        y_0: 0.0,
-        y_1: 800.0,
-        z_0: -700.0,
-        z_1: 1000.0,
-        k: 700.0,
-    })));
-    let right_wall = Box::new(YZRect {
-        material: Box::new(light_blue.clone()),
-        y_0: 0.0,
-        y_1: 800.0,
-        z_0: -700.0,
-        z_1: 1000.0,
-        k: -700.0,
-    });
-    let floor = Box::new(XZRect {
-        material: Box::new(light_blue.clone()),
-        x_0: -700.0,
-        x_1: 700.0,
-        z_0: -700.0,
-        z_1: 1000.0,
-        k: 0.0,
-    });
-    let ceiling = Box::new(FlipNormals::new(Box::new(XZRect {
-        material: Box::new(light_blue.clone()),
-        x_0: -700.0,
-        x_1: 700.0,
-        z_0: -700.0,
-        z_1: 1000.0,
-        k: 800.0,
-    })));
-    let ceiling_light = Box::new(XZRect {
+    let light = Box::new(Sphere {
+        center: Vec3::new(-1000.0, 1000.0, 100.0),
+        radius: 1_000.0,
         material: Box::new(DiffuseLight::new(Box::new(ConstantTexture::new(
-            Vec3::new(7.5, 7.5, 7.5),
+            Vec3::new(3.0, 3.0, 3.0),
         )))),
-        x_0: 100.0,
-        x_1: 700.0,
-        z_0: 200.0,
-        z_1: 500.0,
-        k: 800.0,
     });
 
-    let teapot = parse_obj_file(
-        String::from("object-files/teapot.obj"),
-        Box::new(Glossy::new(
-            Box::new(ConstantTexture::new(Vec3::new(0.8, 0.8, 0.7528))),
-            0.5,
-        )),
+    let house = load_obj_file(
+        &Path::new("object-files/house.obj"),
+        Box::new(Lambertian {
+            albedo: Box::new(ConstantTexture::new(Vec3::new(0.6, 0.4, 0.7528))),
+        }),
     );
 
-    let list: Vec<Box<Hitable>> = vec![
-        ceiling,
-        ceiling_light,
-        left_wall,
-        back_wall,
-        front_wall,
-        right_wall,
-        floor,
-        teapot,
-    ];
+    let list: Vec<Box<Hitable>> = vec![light, Box::new(RotateY::new(Box::new(house), 15.0))];
     BvhNode::new(&mut HitableList { list }, 0.0, 1.0)
 }
 
@@ -523,6 +440,7 @@ fn create_final_scene() -> BvhNode {
 ///
 /// Note: The MAX_DEPTH variable needs to be increased (~50?) for this to properly render
 fn wada() -> BvhNode {
+    #![allow(dead_code)]
     let radius = 120.0;
     let theta = 30.0 * std::f64::consts::PI / 180.0;
     let distance = radius / theta.cos();
@@ -581,118 +499,108 @@ fn wada() -> BvhNode {
     BvhNode::new(&mut HitableList { list }, 0.0, 0.0)
 }
 
-/// Provides primitive ability for parsing an OBJ file.
-fn parse_obj_file(file_name: String, material: Box<Material>) -> Box<Hitable> {
-    let path = &Path::new(&file_name);
-    match File::open(path) {
-        Ok(mut file) => {
-            let mut data = String::new();
-            file.read_to_string(&mut data)
-                .expect("Could not read data from file!");
-            let mut vertices: Vec<Vec3> = vec![];
-            let mut vertex_normals: Vec<Vec3> = vec![];
-            let mut poly_list: Vec<Box<Hitable>> = vec![];
-            let reg = Regex::new(r"//(.+)").unwrap();
-            data.lines().for_each(|line: &str| {
-                if line.starts_with("v ") {
-                    let vec = line
-                        .split_whitespace()
-                        .into_iter()
-                        .filter_map(|v: &str| v.parse::<f64>().ok())
-                        .collect::<Vec<f64>>();
-                    let vertex = Vec3::from_vec(vec);
-                    vertices.push(vertex);
-                } else if line.starts_with("vn ") {
-                    let normal = line
-                        .split_whitespace()
-                        .into_iter()
-                        .filter_map(|v: &str| v.parse::<f64>().ok())
-                        .collect::<Vec<f64>>();
-                    let vert_normal = Vec3::from_vec(normal);
-                    vertex_normals.push(vert_normal);
-                } else if line.starts_with("f ") {
-                    let points = line
-                        .split_whitespace()
-                        .into_iter()
-                        .filter_map(|v: &str| {
-                            if v.contains("//") {
-                                reg.replace(v, "").parse::<usize>().ok()
-                            } else {
-                                v.parse::<usize>().ok()
-                            }
-                        })
-                        .map(|i| vertices[i - 1])
-                        .collect::<Vec<Vec3>>();
-                    let normals = line
-                        .split_whitespace()
-                        .into_iter()
-                        .filter_map(|v: &str| {
-                            if v.contains("//") {
-                                reg.captures(v)
-                                    .unwrap()
-                                    .get(1)
-                                    .unwrap()
-                                    .as_str()
-                                    .parse::<usize>()
-                                    .ok()
-                            } else {
-                                None
-                            }
-                        })
-                        .map(|i| vertex_normals[i - 1])
-                        .collect::<Vec<Vec3>>();
-                    // If a face is defined by more than 3 points, break it into a triangle fan
-                    for n in 0..=(points.len() - 3) {
+/// Loads all the meshes defined in an OBJ file, and returns them in a
+/// constructed BVH.
+fn load_obj_file(file_path: &Path, mut material: Box<Material>) -> BvhNode {
+    match tobj::load_obj(file_path) {
+        Ok((models, materials)) => {
+            let mut meshes: Vec<Box<Hitable>> = vec![];
+            for model in models {
+                let mesh = model.mesh;
+                if mesh.material_id.is_some() {
+                    let mtl = &materials[mesh.material_id.unwrap()];
+                    material = Box::new(Lambertian {
+                        albedo: Box::new(ConstantTexture::new(Vec3::new(
+                            mtl.diffuse[0] as f64,
+                            mtl.diffuse[1] as f64,
+                            mtl.diffuse[2] as f64,
+                        ))),
+                    });
+                }
+                // all vertices in the mesh
+                let vertices: Vec<Vec3> = mesh
+                    .positions
+                    .chunks(3)
+                    .map(|i| Vec3::new(i[0] as f64, i[1] as f64, i[2] as f64))
+                    .collect();
+                // all vertex-normals in the mesh
+                let mut normals: Vec<Vec3> = vec![];
+                if !mesh.normals.is_empty() {
+                    normals = mesh
+                        .normals
+                        .chunks(3)
+                        .map(|i| Vec3::new(i[0] as f64, i[1] as f64, i[2] as f64))
+                        .collect();
+                }
+                // Construct faces
+                let faces: Vec<Box<Hitable>> = mesh
+                    .indices
+                    .chunks(3)
+                    .map(|i| {
                         let mut face = Box::new(Polygon::new(
-                            vec![points[0], points[n + 1], points[n + 2]],
+                            vec![
+                                vertices[i[0] as usize],
+                                vertices[i[1] as usize],
+                                vertices[i[2] as usize],
+                            ],
                             material.clone(),
                         ));
                         if !normals.is_empty() {
-                            face.vertex_normals =
-                                Some(vec![normals[0], normals[n + 1], normals[n + 2]]);
+                            face.vertex_normals = Some(vec![
+                                normals[i[0] as usize],
+                                normals[i[1] as usize],
+                                normals[i[2] as usize],
+                            ]);
                         }
-                        poly_list.push(face);
-                    }
-                }
-            });
-            Box::new(PolygonMesh::new(poly_list))
+                        face as Box<Hitable>
+                    })
+                    .collect();
+                meshes.push(Box::new(PolygonMesh::new(faces)));
+            }
+            BvhNode::new(&mut HitableList { list: meshes }, 0.0, 0.0)
         }
         Err(e) => {
-            println!("Failed to open file: {:?}", e);
-            Box::new(PolygonMesh::new(vec![]))
+            println!("Failed to load file {:?}: {:?}", file_path, e);
+            BvhNode::new(&mut HitableList { list: vec![] }, 0.0, 0.0)
         }
     }
 }
 
 fn main() {
     let num_threads: usize = num_cpus::get() - 1;
-    // let num_x = 350;
-    // let num_y = 350;
-    // let num_samples_per_thread = 572;
-    let num_x = 1024;
-    let num_y = 768;
-    let num_samples_per_thread = 1;
-    let num_samples = num_threads * num_samples_per_thread;
+    // let num_x = 264;
+    // let num_y = 180;
+    let num_x = 600;
+    let num_y = 600;
+    // n and m are the dimensions of the subpixel grid generated for anti-aliasing
+    let (n, m) = (38, 38);
     let range = Uniform::new(0.0, 1.0);
     let mut img_buff = image::ImageBuffer::new(num_x, num_y);
-    let look_from = Vec3::new(50.0, 52.0, 295.6);
-    let look_in = Vec3::new(0.0, -0.042612, -1.0);
+    let look_from = Vec3::new(0.0, 12.0, 10.0);
+    let look_in = Vec3::new(0.0, -0.05, -1.0);
     let camera = Camera::new(
         look_from,                   // Camera origin
         look_in,                     // Camera view direction
         Vec3::new(0.0, 1.0, 0.0),    // Camera "up" direction
-        30.0,                        // Vertical FOV
+        80.0,                        // Vertical FOV
         num_x as f64 / num_y as f64, // Aspect ratio
         0.0,                         // Aperture
         10.0,                        // Focus Distance
         0.0,                         // Shutter open time
         1.0,                         // Shutter close time
     );
-    // let world = Arc::new(create_rand_scene(rand::thread_rng(), &range));
-    // let world = Arc::new(create_cornell_box());
+
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈")
+            .template("{spinner} {msg}: [{elapsed_precise}] "),
+    );
+    spinner.set_message("Performing Scene Construction");
+    spinner.enable_steady_tick(100);
     // let world = Arc::new(create_debug_scene());
-    // let world = Arc::new(create_final_scene());
-    let world = Arc::new(wada());
+    let world = Arc::new(create_cornell_box());
+    spinner.finish_with_message("Scene Construction Completed");
 
     let progress_bar = ProgressBar::new((num_x * num_y) as u64);
     progress_bar.set_style(
@@ -700,7 +608,6 @@ fn main() {
             .template("[{percent}%] {bar:40} [{elapsed_precise} | ~{eta} remaining]")
             .progress_chars("=>-"),
     );
-
     progress_bar.println(format!(
         "Beginning scene tracing using {} CPU cores.",
         num_threads
@@ -714,10 +621,45 @@ fn main() {
                 child_threads.push(thread::spawn(move || -> Vec3 {
                     let mut _color = Vec3::new(0.0, 0.0, 0.0);
                     let mut rng = rand::thread_rng();
-                    for _ in 0..(num_samples / num_threads) {
-                        let u = (x as f64 + range.sample(&mut rng)) / (num_x as f64);
-                        let v = (y as f64 + range.sample(&mut rng)) / (num_y as f64);
-                        let ray = camera.create_ray(u, v);
+                    // Correlated Multi-Jittered Sampling
+                    // Source: (http://graphics.pixar.com/library/MultiJitteredSampling/paper.pdf)
+                    // Step 1: Produce the canonical arrangement
+                    let mut sample_pattern: Vec<(f64, f64)> = vec![(0.0, 0.0); n * m];
+                    for j in 0..n {
+                        for i in 0..m {
+                            sample_pattern[j * m + i].0 = (i as f64
+                                + (j as f64 * range.sample(&mut rng)) / n as f64)
+                                / m as f64;
+                            sample_pattern[j * m + i].1 = (j as f64
+                                + (i as f64 * range.sample(&mut rng)) / m as f64)
+                                / n as f64;
+                        }
+                    }
+                    // Step 2: Shuffle the arrangement
+                    for j in 0..n {
+                        for k in 0..m {
+                            let i = (j as f64 + range.sample(&mut rng) * (n - j) as f64) as usize;
+                            let a = sample_pattern[j * m + i].0;
+                            let b = sample_pattern[k * m + i].0;
+                            sample_pattern[j * m + i].0 = b;
+                            sample_pattern[k * m + i].0 = a;
+                        }
+                    }
+                    for i in 0..m {
+                        for k in 0..n {
+                            let j = (i as f64 + range.sample(&mut rng) * (m - i) as f64) as usize;
+                            let a = sample_pattern[j * m + i].1;
+                            let b = sample_pattern[j * m + k].1;
+                            sample_pattern[j * m + i].1 = b;
+                            sample_pattern[j * m + k].1 = a;
+                        }
+                    }
+                    // Step 3: Use the sample arrangement
+                    for sample in sample_pattern {
+                        let ray = camera.create_ray(
+                            (x as f64 + sample.0) / (num_x as f64),
+                            (y as f64 + sample.1) / (num_y as f64),
+                        );
                         _color += get_color(&ray, &_world, 0);
                     }
                     _color
@@ -726,7 +668,7 @@ fn main() {
             for thread in child_threads {
                 color += thread.join().unwrap();
             }
-            color /= num_samples as f64;
+            color /= (n * m * num_threads) as f64;
             let r = (color.r().min(1.0).sqrt() * 255.99) as u8;
             let g = (color.g().min(1.0).sqrt() * 255.99) as u8;
             let b = (color.b().min(1.0).sqrt() * 255.99) as u8;
@@ -736,7 +678,7 @@ fn main() {
         }
         progress_bar.inc(num_x as u64);
     }
-    progress_bar.println("Finished scene tracing.");
+    progress_bar.println("Scene Tracing Completed.");
     progress_bar.finish();
 
     let path = &Path::new("output.png");

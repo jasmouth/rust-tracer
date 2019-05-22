@@ -6,6 +6,7 @@ While this began as a simple Rust port/reimplementation of Peter Shirley's wonde
 * Nonhomogeneous Participating Media (distance sampling performed via Woodcock tracking)
 * Support for rendering polygonal primitives and polygon meshes
 * Support for multi-threaded rendering
+* Anti-Aliasing via [Correlated Multi-Jittered Sampling](http://graphics.pixar.com/library/MultiJitteredSampling/paper.pdf)
 
 [Gallery of Example Renders](./renders/README.md)
 
