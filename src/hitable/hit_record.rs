@@ -1,11 +1,12 @@
 use material::material::Material;
+use std::sync::Arc;
 use vec3::Vec3;
 
 pub struct HitRecord {
     pub t: f64,
     pub hit_point: Vec3,
     pub normal: Vec3,
-    pub material: Option<Box<Material>>,
+    pub material: Option<Arc<Material>>,
     pub u: f64,
     pub v: f64,
 }

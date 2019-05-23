@@ -5,12 +5,13 @@ use hitable::hitable::Hitable;
 use hitable::hitable_list::HitableList;
 use material::material::Material;
 use ray::Ray;
+use std::sync::Arc;
 use vec3::Vec3;
 
 /// Represents a rectangle aligned along the X-Y axis
 #[derive(Clone)]
 pub struct XYRect {
-    pub material: Box<Material>,
+    pub material: Arc<Material>,
     pub x_0: f64,
     pub x_1: f64,
     pub y_0: f64,
@@ -32,7 +33,7 @@ impl Hitable for XYRect {
         rec.t = t;
         rec.hit_point = ray.point_at_param(t);
         rec.normal = Vec3::new(0.0, 0.0, 1.0);
-        rec.material = Some(self.material.clone());
+        rec.material = Some(Arc::clone(&self.material));
         let (u, v) = (
             (x - self.x_0) / (self.x_1 - self.x_0),
             (y - self.y_0) / (self.y_1 - self.y_0),
@@ -48,16 +49,12 @@ impl Hitable for XYRect {
             Vec3::new(self.x_1, self.y_1, self.k + 0.0001),
         ))
     }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
-    }
 }
 
 /// Represents a rectangle aligned along the X-Z axis
 #[derive(Clone)]
 pub struct XZRect {
-    pub material: Box<Material>,
+    pub material: Arc<Material>,
     pub x_0: f64,
     pub x_1: f64,
     pub z_0: f64,
@@ -79,7 +76,7 @@ impl Hitable for XZRect {
         rec.t = t;
         rec.hit_point = ray.point_at_param(t);
         rec.normal = Vec3::new(0.0, 1.0, 0.0);
-        rec.material = Some(self.material.clone());
+        rec.material = Some(Arc::clone(&self.material));
         let (u, v) = (
             (x - self.x_0) / (self.x_1 - self.x_0),
             (z - self.z_0) / (self.z_1 - self.z_0),
@@ -95,16 +92,12 @@ impl Hitable for XZRect {
             Vec3::new(self.x_1, self.k + 0.0001, self.z_1),
         ))
     }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
-    }
 }
 
 /// Represents a rectangle aligned along the Y-Z axis
 #[derive(Clone)]
 pub struct YZRect {
-    pub material: Box<Material>,
+    pub material: Arc<Material>,
     pub y_0: f64,
     pub y_1: f64,
     pub z_0: f64,
@@ -126,7 +119,7 @@ impl Hitable for YZRect {
         rec.t = t;
         rec.hit_point = ray.point_at_param(t);
         rec.normal = Vec3::new(1.0, 0.0, 0.0);
-        rec.material = Some(self.material.clone());
+        rec.material = Some(Arc::clone(&self.material));
         let (u, v) = (
             (y - self.y_0) / (self.y_1 - self.y_0),
             (z - self.z_0) / (self.z_1 - self.z_0),
@@ -141,10 +134,6 @@ impl Hitable for YZRect {
             Vec3::new(self.k - 0.0001, self.y_0, self.z_0),
             Vec3::new(self.k + 0.0001, self.y_1, self.z_1),
         ))
-    }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
     }
 }
 
@@ -162,49 +151,49 @@ impl AxisAlignedBlock {
     /// - `p_min`: The plane to use for the lower bound of the box
     /// - `p_max`: The plane to use for the upper bound of the box
     /// - `material`: The material to use for the sides of the box
-    pub fn new(p_min: Vec3, p_max: Vec3, material: Box<Material>) -> Self {
-        let left_wall = Box::new(YZRect {
-            material: material.clone(),
+    pub fn new(p_min: Vec3, p_max: Vec3, material: Arc<Material>) -> Self {
+        let left_wall = Arc::new(YZRect {
+            material: Arc::clone(&material),
             y_0: p_min.y(),
             y_1: p_max.y(),
             z_0: p_min.z(),
             z_1: p_max.z(),
             k: p_max.x(),
         });
-        let right_wall = Box::new(FlipNormals::new(Box::new(YZRect {
-            material: material.clone(),
+        let right_wall = Arc::new(FlipNormals::new(Arc::new(YZRect {
+            material: Arc::clone(&material),
             y_0: p_min.y(),
             y_1: p_max.y(),
             z_0: p_min.z(),
             z_1: p_max.z(),
             k: p_min.x(),
         })));
-        let back_wall = Box::new(XYRect {
-            material: material.clone(),
+        let back_wall = Arc::new(XYRect {
+            material: Arc::clone(&material),
             x_0: p_min.x(),
             x_1: p_max.x(),
             y_0: p_min.y(),
             y_1: p_max.y(),
             k: p_max.z(),
         });
-        let front_wall = Box::new(FlipNormals::new(Box::new(XYRect {
-            material: material.clone(),
+        let front_wall = Arc::new(FlipNormals::new(Arc::new(XYRect {
+            material: Arc::clone(&material),
             x_0: p_min.x(),
             x_1: p_max.x(),
             y_0: p_min.y(),
             y_1: p_max.y(),
             k: p_min.z(),
         })));
-        let floor = Box::new(FlipNormals::new(Box::new(XZRect {
-            material: material.clone(),
+        let floor = Arc::new(FlipNormals::new(Arc::new(XZRect {
+            material: Arc::clone(&material),
             x_0: p_min.x(),
             x_1: p_max.x(),
             z_0: p_min.z(),
             z_1: p_max.z(),
             k: p_min.y(),
         })));
-        let ceiling = Box::new(XZRect {
-            material: material.clone(),
+        let ceiling = Arc::new(XZRect {
+            material: Arc::clone(&material),
             x_0: p_min.x(),
             x_1: p_max.x(),
             z_0: p_min.z(),
@@ -229,9 +218,5 @@ impl Hitable for AxisAlignedBlock {
 
     fn bounding_box(&self, _start_time: f64, _end_time: f64) -> Option<AxisAlignedBoundingBox> {
         Some(AxisAlignedBoundingBox::new(self.p_min, self.p_max))
-    }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
     }
 }

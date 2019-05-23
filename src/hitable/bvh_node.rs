@@ -5,12 +5,13 @@ use hitable::hitable::Hitable;
 use hitable::hitable_list::HitableList;
 use rand::Rng;
 use ray::Ray;
+use std::sync::Arc;
 
 /// Represents a Bounding Volume Hierarchy
 #[derive(Clone)]
 pub struct BvhNode {
-    pub left: Box<Hitable>,
-    pub right: Box<Hitable>,
+    pub left: Arc<Hitable>,
+    pub right: Arc<Hitable>,
     pub bounding_box: AxisAlignedBoundingBox,
 }
 
@@ -20,7 +21,7 @@ impl BvhNode {
     pub fn new(hitable_list: &mut HitableList, start_time: f64, end_time: f64) -> Self {
         // Sort the hitable list by a randomly chosen axis
         let rand_axis = (rand::thread_rng().gen::<f64>() * 3.0) as u8;
-        let sort_ord = |a: &Box<Hitable>, b: &Box<Hitable>| {
+        let sort_ord = |a: &Arc<Hitable>, b: &Arc<Hitable>| {
             let a_box = a
                 .bounding_box(0.0, 0.0)
                 .expect("No bounding box for left child!");
@@ -37,25 +38,31 @@ impl BvhNode {
         hitable_list.list.sort_by(sort_ord);
         // If there are more than 2 elements in the list, split it a la binary search
         let (left, right) = match hitable_list.len() {
-            1 => (hitable_list.list[0].clone(), hitable_list.list[0].clone()),
-            2 => (hitable_list.list[0].clone(), hitable_list.list[1].clone()),
+            1 => (
+                Arc::clone(&hitable_list.list[0]),
+                Arc::clone(&hitable_list.list[0]),
+            ),
+            2 => (
+                Arc::clone(&hitable_list.list[0]),
+                Arc::clone(&hitable_list.list[1]),
+            ),
             _ => {
                 let (left_list, right_list) = hitable_list.list.split_at(hitable_list.len() / 2);
                 (
-                    Box::new(BvhNode::new(
+                    Arc::new(BvhNode::new(
                         &mut HitableList {
                             list: left_list.to_vec(),
                         },
                         start_time,
                         end_time,
-                    )) as Box<Hitable>,
-                    Box::new(BvhNode::new(
+                    )) as Arc<Hitable>,
+                    Arc::new(BvhNode::new(
                         &mut HitableList {
                             list: right_list.to_vec(),
                         },
                         start_time,
                         end_time,
-                    )) as Box<Hitable>,
+                    )) as Arc<Hitable>,
                 )
             }
         };
@@ -103,9 +110,5 @@ impl Hitable for BvhNode {
 
     fn bounding_box(&self, _start_time: f64, _end_time: f64) -> Option<AxisAlignedBoundingBox> {
         Some(self.bounding_box)
-    }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
     }
 }

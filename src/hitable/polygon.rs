@@ -7,6 +7,7 @@ use material::material::Material;
 use ray::Ray;
 use std::f64::MAX as FLOAT_MAX;
 use std::f64::MIN as FLOAT_MIN;
+use std::sync::Arc;
 use vec3::{cross, dot, unit_vector, Vec3};
 
 /// Represents an n-sided polygon
@@ -15,17 +16,19 @@ pub struct Polygon {
     pub vertices: Vec<Vec3>,
     pub normal: Vec3,
     pub vertex_normals: Option<Vec<Vec3>>,
+    pub texture_coords: Option<Vec<(f64, f64)>>,
     bounding_box: Option<AxisAlignedBoundingBox>,
-    material: Box<Material>,
+    material: Arc<Material>,
 }
 
 impl Polygon {
     /// Constructs a new Polygon from the list of given vertices
-    pub fn new(vertices: Vec<Vec3>, material: Box<Material>) -> Self {
+    pub fn new(vertices: Vec<Vec3>, material: Arc<Material>) -> Self {
         let mut poly = Polygon {
             vertices,
             normal: Vec3::new(0.0, 0.0, 0.0),
             vertex_normals: None,
+            texture_coords: None,
             bounding_box: None,
             material,
         };
@@ -64,6 +67,27 @@ impl Polygon {
                 unit_vector(u * norms[0] + v * norms[1] + (1.0 - u - v) * norms[2])
             }
             None => self.normal,
+        }
+    }
+
+    /// Interpolates a *triangle's* UV texture coordinates at a given `hit_point`
+    fn interpolate_uv(&self, hit_point: Vec3) -> (f64, f64) {
+        match self.texture_coords {
+            Some(ref texcoords) => {
+                let a = self.vertices[0];
+                let b = self.vertices[1];
+                let c = self.vertices[2];
+                let area_abc = &cross(&(b - a), &(c - a)).length();
+                let area_pbc = &cross(&(b - hit_point), &(c - hit_point)).length();
+                let area_pca = &cross(&(c - hit_point), &(a - hit_point)).length();
+                let u = area_pbc / area_abc;
+                let v = area_pca / area_abc;
+                (
+                    u * texcoords[0].0 + v * texcoords[1].0 + (1.0 - u - v) * texcoords[2].0,
+                    u * texcoords[0].1 + v * texcoords[1].1 + (1.0 - u - v) * texcoords[2].1,
+                )
+            }
+            None => (0.0, 0.0),
         }
     }
 
@@ -141,8 +165,10 @@ impl Hitable for Polygon {
         rec.t = t;
         rec.hit_point = hit_point;
         rec.normal = self.interpolate_normal(hit_point);
-        rec.material = Some(self.material.clone());
-        // TODO: calculate u and v
+        let (u, v) = self.interpolate_uv(hit_point);
+        rec.u = u;
+        rec.v = v;
+        rec.material = Some(Arc::clone(&self.material));
         true
     }
 
@@ -159,10 +185,6 @@ impl Hitable for Polygon {
         }
         Some(AxisAlignedBoundingBox::new(min_bound, max_bound))
     }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
-    }
 }
 
 /// Convenience wrapper around a list of Polygons defining
@@ -174,7 +196,7 @@ pub struct PolygonMesh {
 
 impl PolygonMesh {
     /// Constructs a new polygon mesh with the given list of individual polygons
-    pub fn new(polygons: Vec<Box<Hitable>>) -> Self {
+    pub fn new(polygons: Vec<Arc<Hitable>>) -> Self {
         PolygonMesh {
             polygons: BvhNode::new(&mut HitableList { list: polygons }, 0.0, 0.0),
         }
@@ -188,9 +210,5 @@ impl Hitable for PolygonMesh {
 
     fn bounding_box(&self, _start_time: f64, _end_time: f64) -> Option<AxisAlignedBoundingBox> {
         Some(self.polygons.bounding_box)
-    }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
     }
 }

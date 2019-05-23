@@ -3,11 +3,12 @@ use bounding_boxes::utils;
 use hitable::hit_record::HitRecord;
 use hitable::hitable::Hitable;
 use ray::Ray;
+use std::sync::Arc;
 
 /// Represents a list of Hitable objects.
 #[derive(Clone)]
 pub struct HitableList {
-    pub list: Vec<Box<Hitable>>,
+    pub list: Vec<Arc<Hitable>>,
 }
 
 impl HitableList {
@@ -55,9 +56,5 @@ impl Hitable for HitableList {
         }
 
         bounding_box
-    }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
     }
 }

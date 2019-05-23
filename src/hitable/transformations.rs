@@ -5,12 +5,13 @@ use ray::Ray;
 use std::f64::consts::PI;
 use std::f64::MAX as FLOAT_MAX;
 use std::f64::MIN as FLOAT_MIN;
+use std::sync::Arc;
 use vec3::Vec3;
 
 /// Wrapper struct that wraps a Hitable and shifts it by some given offset
 #[derive(Clone)]
 pub struct Translate {
-    pub hitable: Box<Hitable>,
+    pub hitable: Arc<Hitable>,
     pub offset: Vec3,
 }
 
@@ -18,7 +19,7 @@ impl Translate {
     /// Arguments:
     /// - `hitable`: The Hitable to be shifted
     /// - `offset`: The offset amount used to shift the Hitable
-    pub fn new(hitable: Box<Hitable>, offset: Vec3) -> Self {
+    pub fn new(hitable: Arc<Hitable>, offset: Vec3) -> Self {
         Translate { hitable, offset }
     }
 }
@@ -42,16 +43,12 @@ impl Hitable for Translate {
             None => None,
         }
     }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
-    }
 }
 
 /// Wrapper struct that wraps a Hitable and rotates it about the Y axis
 #[derive(Clone)]
 pub struct RotateY {
-    hitable: Box<Hitable>,
+    hitable: Arc<Hitable>,
     sin_theta: f64,
     cos_theta: f64,
     bounding_box: Option<AxisAlignedBoundingBox>,
@@ -61,7 +58,7 @@ impl RotateY {
     /// Arguments:
     /// - `hitable`: The Hitable to be rotated
     /// - `theta`: The angle (in degrees) to rotate the Hitable
-    pub fn new(hitable: Box<Hitable>, theta: f64) -> Self {
+    pub fn new(hitable: Arc<Hitable>, theta: f64) -> Self {
         let rads = (PI / 180.0) * theta;
         let sin_theta = rads.sin();
         let cos_theta = rads.cos();
@@ -141,9 +138,5 @@ impl Hitable for RotateY {
 
     fn bounding_box(&self, _start_time: f64, _end_time: f64) -> Option<AxisAlignedBoundingBox> {
         self.bounding_box
-    }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
     }
 }

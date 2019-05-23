@@ -3,6 +3,7 @@ use hitable::utils;
 use material::material::Material;
 use rand::distributions::{Distribution, Uniform};
 use ray::Ray;
+use std::sync::Arc;
 use texture::texture::Texture;
 use texture::textures::ConstantTexture;
 use vec3::{dot, unit_vector, Vec3};
@@ -10,13 +11,13 @@ use vec3::{dot, unit_vector, Vec3};
 /// A Lambertian material is a "matte", or diffusely reflecting, surface.
 #[derive(Clone)]
 pub struct Lambertian {
-    pub albedo: Box<Texture>,
+    pub albedo: Arc<Texture>,
 }
 
 impl Lambertian {
     pub fn new() -> Self {
         Lambertian {
-            albedo: Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
+            albedo: Arc::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
         }
     }
 }
@@ -35,30 +36,26 @@ impl Material for Lambertian {
             .value(hit_record.u, hit_record.v, &hit_record.hit_point);
         (scattered_ray, attenuation, true)
     }
-
-    fn box_clone(&self) -> Box<Material> {
-        Box::new((*self).clone())
-    }
 }
 
 /// A metallic surface. The fuzziness field dictates how polished the surface appears.
 #[derive(Clone)]
 pub struct Metal {
-    pub albedo: Box<Texture>,
-    pub emittance_albedo: Box<Texture>,
+    pub albedo: Arc<Texture>,
+    pub emittance_albedo: Arc<Texture>,
     pub fuzziness: f64,
 }
 
 impl Metal {
-    pub fn new(albedo: Box<Texture>, fuzz: f64) -> Self {
+    pub fn new(albedo: Arc<Texture>, fuzz: f64) -> Self {
         Metal {
             albedo,
-            emittance_albedo: Box::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
+            emittance_albedo: Arc::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
             fuzziness: if fuzz < 1.0 { fuzz } else { 1.0 },
         }
     }
 
-    pub fn new_emitting(albedo: Box<Texture>, emittance_albedo: Box<Texture>, fuzz: f64) -> Self {
+    pub fn new_emitting(albedo: Arc<Texture>, emittance_albedo: Arc<Texture>, fuzz: f64) -> Self {
         Metal {
             albedo,
             emittance_albedo,
@@ -86,10 +83,6 @@ impl Material for Metal {
 
     fn emit(&self, u: f64, v: f64, hit_point: &Vec3) -> Vec3 {
         self.emittance_albedo.value(u, v, hit_point)
-    }
-
-    fn box_clone(&self) -> Box<Material> {
-        Box::new((*self).clone())
     }
 }
 
@@ -157,20 +150,16 @@ impl Material for Dielectric {
 
         (scattered_ray, attenuation, true)
     }
-
-    fn box_clone(&self) -> Box<Material> {
-        Box::new((*self).clone())
-    }
 }
 
 /// A material that emits diffused (i.e. non-concentrated) light
 #[derive(Clone)]
 pub struct DiffuseLight {
-    texture: Box<Texture>,
+    texture: Arc<Texture>,
 }
 
 impl DiffuseLight {
-    pub fn new(texture: Box<Texture>) -> Self {
+    pub fn new(texture: Arc<Texture>) -> Self {
         DiffuseLight { texture }
     }
 }
@@ -184,16 +173,12 @@ impl Material for DiffuseLight {
     fn emit(&self, u: f64, v: f64, hit_point: &Vec3) -> Vec3 {
         self.texture.value(u, v, hit_point)
     }
-
-    fn box_clone(&self) -> Box<Material> {
-        Box::new((*self).clone())
-    }
 }
 
 /// A material that uniformly scatters light in all directions
 #[derive(Clone)]
 pub struct Isotropic {
-    pub albedo: Box<Texture>,
+    pub albedo: Arc<Texture>,
 }
 
 impl Material for Isotropic {
@@ -208,26 +193,22 @@ impl Material for Isotropic {
             .value(hit_record.u, hit_record.v, &hit_record.hit_point);
         (scattered_ray, attenuation, true)
     }
-
-    fn box_clone(&self) -> Box<Material> {
-        Box::new((*self).clone())
-    }
 }
 
 /// A (simulated) glossy material.
 #[derive(Clone)]
 pub struct Glossy {
-    pub albedo: Box<Texture>,
-    pub specular_albedo: Box<Texture>,
+    pub albedo: Arc<Texture>,
+    pub specular_albedo: Arc<Texture>,
     /// The glossiness field dictates how sharp the specular highlights appear.
     pub glossiness: f64,
 }
 
 impl Glossy {
-    pub fn new(albedo: Box<Texture>, gloss: f64) -> Self {
+    pub fn new(albedo: Arc<Texture>, gloss: f64) -> Self {
         Glossy {
             albedo,
-            specular_albedo: Box::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
+            specular_albedo: Arc::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
             glossiness: if gloss <= 1.0 && gloss >= 0.0 {
                 1.0 - gloss
             } else {
@@ -276,9 +257,5 @@ impl Material for Glossy {
             // the ray has been scattered under the object's surface.
             dot(&scattered_ray.direction, &hit_record.normal) > 0.0,
         )
-    }
-
-    fn box_clone(&self) -> Box<Material> {
-        Box::new((*self).clone())
     }
 }

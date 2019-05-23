@@ -15,6 +15,7 @@ pub mod vec3;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::distributions::{Distribution, Uniform};
 use rand::Rng;
+use std::collections::HashMap;
 use std::f64::MAX as FLOAT_MAX;
 use std::fs::File;
 use std::path::Path;
@@ -36,10 +37,11 @@ use hitable::volumes::{ConstantMedium, VariableMedium};
 use material::material::Material;
 use material::materials::{Dielectric, DiffuseLight, Lambertian, Metal};
 use ray::Ray;
-use texture::textures::{CheckerTexture, ConstantTexture, NoiseTexture};
+use texture::texture::Texture;
+use texture::textures::{CheckerTexture, ConstantTexture, ImageTexture, NoiseTexture};
 use vec3::Vec3;
 
-static MAX_DEPTH: i32 = 50;
+static MAX_DEPTH: i32 = 5;
 
 /// Calculates a final color value for a given Ray
 fn get_color(ray: &Ray, world: &BvhNode, depth: i32) -> Vec3 {
@@ -74,16 +76,16 @@ fn create_rand_scene(
     range: &rand::distributions::Uniform<f64>,
 ) -> BvhNode {
     #![allow(dead_code)]
-    let mut sphere_list = vec![Box::new(Sphere {
+    let mut sphere_list = vec![Arc::new(Sphere {
         center: Vec3::new(0.0, -1000.0, 0.0),
         radius: 1000.0,
-        material: Box::new(Lambertian {
-            albedo: Box::new(CheckerTexture::new(
-                Box::new(ConstantTexture::new(Vec3::new(0.2, 0.3, 0.1))),
-                Box::new(ConstantTexture::new(Vec3::new(0.9, 0.9, 0.9))),
+        material: Arc::new(Lambertian {
+            albedo: Arc::new(CheckerTexture::new(
+                Arc::new(ConstantTexture::new(Vec3::new(0.2, 0.3, 0.1))),
+                Arc::new(ConstantTexture::new(Vec3::new(0.9, 0.9, 0.9))),
             )),
         }),
-    }) as Box<Hitable>];
+    }) as Arc<Hitable>];
 
     for a in -11..11 {
         for b in -11..11 {
@@ -99,17 +101,17 @@ fn create_rand_scene(
             {
                 continue;
             }
-            let sphere: Box<Hitable> = {
+            let sphere: Arc<Hitable> = {
                 if material_choice < 0.75 {
                     // Matte
-                    Box::new(MovingSphere {
+                    Arc::new(MovingSphere {
                         start_center: center,
                         end_center: center + Vec3::new(0.0, 0.5 * range.sample(&mut rng), 0.0),
                         start_time: 0.0,
                         end_time: 1.0,
                         radius: 0.2,
-                        material: Box::new(Lambertian {
-                            albedo: Box::new(ConstantTexture::new(Vec3::new(
+                        material: Arc::new(Lambertian {
+                            albedo: Arc::new(ConstantTexture::new(Vec3::new(
                                 range.sample(&mut rng) * range.sample(&mut rng),
                                 range.sample(&mut rng) * range.sample(&mut rng),
                                 range.sample(&mut rng) * range.sample(&mut rng),
@@ -118,11 +120,11 @@ fn create_rand_scene(
                     })
                 } else if material_choice < 0.9 {
                     // Metal
-                    Box::new(Sphere {
+                    Arc::new(Sphere {
                         center,
                         radius: 0.2,
-                        material: Box::new(Metal::new(
-                            Box::new(ConstantTexture::new(Vec3::new(
+                        material: Arc::new(Metal::new(
+                            Arc::new(ConstantTexture::new(Vec3::new(
                                 0.5 * (1.0 + range.sample(&mut rng)),
                                 0.5 * (1.0 + range.sample(&mut rng)),
                                 0.5 * (1.0 + range.sample(&mut rng)),
@@ -132,17 +134,17 @@ fn create_rand_scene(
                     })
                 } else if material_choice < 0.95 {
                     // Glass
-                    Box::new(Sphere {
+                    Arc::new(Sphere {
                         center,
                         radius: 0.2,
-                        material: Box::new(Dielectric::new(1.5)),
+                        material: Arc::new(Dielectric::new(1.5)),
                     })
                 } else {
                     // Diamond
-                    Box::new(Sphere {
+                    Arc::new(Sphere {
                         center,
                         radius: 0.2,
-                        material: Box::new(Dielectric::new(2.4)),
+                        material: Arc::new(Dielectric::new(2.4)),
                     })
                 }
             };
@@ -150,23 +152,23 @@ fn create_rand_scene(
         }
     }
 
-    sphere_list.push(Box::new(Sphere {
+    sphere_list.push(Arc::new(Sphere {
         center: Vec3::new(2.0, 1.0, -2.0),
         radius: 1.0,
-        material: Box::new(Dielectric::new(1.5)),
+        material: Arc::new(Dielectric::new(1.5)),
     }));
-    sphere_list.push(Box::new(Sphere {
+    sphere_list.push(Arc::new(Sphere {
         center: Vec3::new(0.0, 1.0, 1.0),
         radius: 1.0,
-        material: Box::new(Lambertian {
-            albedo: Box::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
+        material: Arc::new(Lambertian {
+            albedo: Arc::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
         }),
     }));
-    sphere_list.push(Box::new(Sphere {
+    sphere_list.push(Arc::new(Sphere {
         center: Vec3::new(4.0, 1.0, 0.0),
         radius: 1.0,
-        material: Box::new(Metal::new(
-            Box::new(ConstantTexture::new(Vec3::new(0.5, 0.5, 0.5))),
+        material: Arc::new(Metal::new(
+            Arc::new(ConstantTexture::new(Vec3::new(0.5, 0.5, 0.5))),
             0.0,
         )),
     }));
@@ -178,49 +180,49 @@ fn create_rand_scene(
 fn create_cornell_box() -> BvhNode {
     #![allow(dead_code)]
     let red = Lambertian {
-        albedo: Box::new(ConstantTexture::new(Vec3::new(0.65, 0.05, 0.05))),
+        albedo: Arc::new(ConstantTexture::new(Vec3::new(0.65, 0.05, 0.05))),
     };
     let white = Lambertian {
-        albedo: Box::new(ConstantTexture::new(Vec3::new(0.73, 0.73, 0.73))),
+        albedo: Arc::new(ConstantTexture::new(Vec3::new(0.73, 0.73, 0.73))),
     };
     let green = Lambertian {
-        albedo: Box::new(ConstantTexture::new(Vec3::new(0.12, 0.45, 0.15))),
+        albedo: Arc::new(ConstantTexture::new(Vec3::new(0.12, 0.45, 0.15))),
     };
-    let light = DiffuseLight::new(Box::new(ConstantTexture::new(Vec3::new(2.0, 2.0, 2.0))));
-    let left_wall = Box::new(YZRect {
-        material: Box::new(green),
+    let light = DiffuseLight::new(Arc::new(ConstantTexture::new(Vec3::new(2.0, 2.0, 2.0))));
+    let left_wall = Arc::new(YZRect {
+        material: Arc::new(green),
         y_0: 0.0,
         y_1: 20.0,
         z_0: -10.0,
         z_1: 10.0,
         k: -10.0,
     });
-    let right_wall = Box::new(YZRect {
-        material: Box::new(red.clone()),
+    let right_wall = Arc::new(YZRect {
+        material: Arc::new(red.clone()),
         y_0: 0.0,
         y_1: 20.0,
         z_0: -10.0,
         z_1: 10.0,
         k: 10.0,
     });
-    let back_wall = Box::new(XYRect {
-        material: Box::new(white.clone()),
+    let back_wall = Arc::new(XYRect {
+        material: Arc::new(white.clone()),
         x_0: -10.0,
         x_1: 10.0,
         y_0: 0.0,
         y_1: 20.0,
         k: 10.0,
     });
-    let front_wall = Box::new(XYRect {
-        material: Box::new(white.clone()),
+    let front_wall = Arc::new(XYRect {
+        material: Arc::new(white.clone()),
         x_0: -10.0,
         x_1: 10.0,
         y_0: 0.0,
         y_1: 20.0,
         k: -10.0,
     });
-    let _front_light = Box::new(XYRect {
-        material: Box::new(DiffuseLight::new(Box::new(ConstantTexture::new(
+    let _front_light = Arc::new(XYRect {
+        material: Arc::new(DiffuseLight::new(Arc::new(ConstantTexture::new(
             Vec3::new(2.0, 2.0, 2.0),
         )))),
         x_0: 0.0,
@@ -229,24 +231,24 @@ fn create_cornell_box() -> BvhNode {
         y_1: 555.0,
         k: -605.0,
     });
-    let floor = Box::new(XZRect {
-        material: Box::new(white.clone()),
+    let floor = Arc::new(XZRect {
+        material: Arc::new(white.clone()),
         x_0: -10.0,
         x_1: 10.0,
         z_0: -10.0,
         z_1: 10.0,
         k: 0.0,
     });
-    let ceiling = Box::new(XZRect {
-        material: Box::new(white.clone()),
+    let ceiling = Arc::new(XZRect {
+        material: Arc::new(white.clone()),
         x_0: -10.0,
         x_1: 10.0,
         z_0: -10.0,
         z_1: 10.0,
         k: 20.0,
     });
-    let ceiling_light = Box::new(XZRect {
-        material: Box::new(light.clone()),
+    let ceiling_light = Arc::new(XZRect {
+        material: Arc::new(light.clone()),
         x_0: -7.5,
         x_1: 7.5,
         z_0: -7.5,
@@ -254,27 +256,27 @@ fn create_cornell_box() -> BvhNode {
         k: 20.0,
     });
 
-    let pedestal = Box::new(AxisAlignedBlock::new(
+    let pedestal = Arc::new(AxisAlignedBlock::new(
         Vec3::new(-2.0, 0.0, -3.0),
         Vec3::new(2.0, 7.95, 1.0),
-        Box::new(Lambertian {
-            albedo: Box::new(ConstantTexture::new(Vec3::new(0.396, 0.263, 0.129))),
+        Arc::new(Lambertian {
+            albedo: Arc::new(ConstantTexture::new(Vec3::new(0.396, 0.263, 0.129))),
         }),
     ));
 
     let teapot = load_obj_file(
         &Path::new("object-files/teapot.obj"),
-        Box::new(Dielectric::new(1.54)),
+        Arc::new(Dielectric::new(1.54)),
     );
-    let list: Vec<Box<Hitable>> = vec![
+    let list: Vec<Arc<Hitable>> = vec![
         left_wall,
-        Box::new(FlipNormals::new(right_wall)),
-        Box::new(FlipNormals::new(back_wall)),
+        Arc::new(FlipNormals::new(right_wall)),
+        Arc::new(FlipNormals::new(back_wall)),
         front_wall,
         floor,
-        Box::new(FlipNormals::new(ceiling)),
+        Arc::new(FlipNormals::new(ceiling)),
         ceiling_light,
-        Box::new(Translate::new(Box::new(teapot), Vec3::new(0.0, 8.0, -1.5))),
+        Arc::new(Translate::new(Arc::new(teapot), Vec3::new(0.0, 8.0, -1.5))),
         pedestal,
     ];
 
@@ -283,22 +285,22 @@ fn create_cornell_box() -> BvhNode {
 
 fn create_debug_scene() -> BvhNode {
     #![allow(dead_code)]
-    let light = Box::new(Sphere {
+    let light = Arc::new(Sphere {
         center: Vec3::new(-1000.0, 1000.0, 100.0),
         radius: 1_000.0,
-        material: Box::new(DiffuseLight::new(Box::new(ConstantTexture::new(
+        material: Arc::new(DiffuseLight::new(Arc::new(ConstantTexture::new(
             Vec3::new(3.0, 3.0, 3.0),
         )))),
     });
 
     let house = load_obj_file(
-        &Path::new("object-files/house.obj"),
-        Box::new(Lambertian {
-            albedo: Box::new(ConstantTexture::new(Vec3::new(0.6, 0.4, 0.7528))),
+        &Path::new("object-files/house/house.obj"),
+        Arc::new(Lambertian {
+            albedo: Arc::new(ConstantTexture::new(Vec3::new(0.6, 0.4, 0.7528))),
         }),
     );
 
-    let list: Vec<Box<Hitable>> = vec![light, Box::new(RotateY::new(Box::new(house), 15.0))];
+    let list: Vec<Arc<Hitable>> = vec![light, Arc::new(RotateY::new(Arc::new(house), 15.0))];
     BvhNode::new(&mut HitableList { list }, 0.0, 1.0)
 }
 
@@ -308,27 +310,27 @@ fn create_final_scene() -> BvhNode {
 
     // Ground definition
     let num_boxes = 20;
-    let mut box_list: Vec<Box<Hitable>> = vec![];
+    let mut box_list: Vec<Arc<Hitable>> = vec![];
     let ground = Lambertian {
-        albedo: Box::new(ConstantTexture::new(Vec3::new(0.48, 0.83, 0.53))),
+        albedo: Arc::new(ConstantTexture::new(Vec3::new(0.48, 0.83, 0.53))),
     };
     for i in 0..num_boxes {
         for j in 0..num_boxes {
             let width = 100.0;
             let (x_0, y_0, z_0) = (-1000.0 + i as f64 * width, 0.0, -1000.0 + j as f64 * width);
             let (x_1, y_1, z_1) = (x_0 + width, 100.0 * (0.01 + rng.gen::<f64>()), z_0 + width);
-            box_list.push(Box::new(AxisAlignedBlock::new(
+            box_list.push(Arc::new(AxisAlignedBlock::new(
                 Vec3::new(x_0, y_0, z_0),
                 Vec3::new(x_1, y_1, z_1),
-                Box::new(ground.clone()),
+                Arc::new(ground.clone()),
             )));
         }
     }
 
     // Light definition
-    let light = DiffuseLight::new(Box::new(ConstantTexture::new(Vec3::new(7.0, 7.0, 7.0))));
-    let ceiling_light = Box::new(XZRect {
-        material: Box::new(light),
+    let light = DiffuseLight::new(Arc::new(ConstantTexture::new(Vec3::new(7.0, 7.0, 7.0))));
+    let ceiling_light = Arc::new(XZRect {
+        material: Arc::new(light),
         x_0: 123.0,
         x_1: 423.0,
         z_0: 147.0,
@@ -337,9 +339,9 @@ fn create_final_scene() -> BvhNode {
     });
 
     // Sphere definitions
-    let fly_ball = Box::new(MovingSphere {
-        material: Box::new(Lambertian {
-            albedo: Box::new(ConstantTexture::new(Vec3::new(0.7, 0.3, 0.1))),
+    let fly_ball = Arc::new(MovingSphere {
+        material: Arc::new(Lambertian {
+            albedo: Arc::new(ConstantTexture::new(Vec3::new(0.7, 0.3, 0.1))),
         }),
         start_center: Vec3::new(400.0, 400.0, 200.0),
         end_center: Vec3::new(430.0, 400.0, 200.0),
@@ -347,69 +349,69 @@ fn create_final_scene() -> BvhNode {
         end_time: 1.0,
         radius: 50.0,
     });
-    let glass_ball = Box::new(Sphere {
-        material: Box::new(Dielectric::new(1.5)),
+    let glass_ball = Arc::new(Sphere {
+        material: Arc::new(Dielectric::new(1.5)),
         center: Vec3::new(260.0, 150.0, 45.0),
         radius: 50.0,
     });
-    let metal_ball = Box::new(Sphere {
-        material: Box::new(Metal::new(
-            Box::new(ConstantTexture::new(Vec3::new(0.8, 0.8, 0.9))),
+    let metal_ball = Arc::new(Sphere {
+        material: Arc::new(Metal::new(
+            Arc::new(ConstantTexture::new(Vec3::new(0.8, 0.8, 0.9))),
             10.0,
         )),
         center: Vec3::new(0.0, 150.0, 145.0),
         radius: 50.0,
     });
-    let marble_ball = Box::new(Sphere {
-        material: Box::new(Lambertian {
-            albedo: Box::new(NoiseTexture::new(0.05, 8)),
+    let marble_ball = Arc::new(Sphere {
+        material: Arc::new(Lambertian {
+            albedo: Arc::new(NoiseTexture::new(0.05, 8)),
         }),
         center: Vec3::new(220.0, 280.0, 300.0),
         radius: 80.0,
     });
 
     // Volume definitions
-    let subsurface_boundary = Box::new(Sphere {
-        material: Box::new(Dielectric::new(1.5)),
+    let subsurface_boundary = Arc::new(Sphere {
+        material: Arc::new(Dielectric::new(1.5)),
         center: Vec3::new(360.0, 150.0, 145.0),
         radius: 70.0,
-    });
-    let subsurface_volume = Box::new(ConstantMedium::new(
-        subsurface_boundary.clone(),
+    }) as Arc<Hitable>;
+    let subsurface_volume = Arc::new(ConstantMedium::new(
+        Arc::clone(&subsurface_boundary),
         0.5,
-        Box::new(ConstantTexture::new(Vec3::new(0.2, 0.4, 0.9))),
+        Arc::new(ConstantTexture::new(Vec3::new(0.2, 0.4, 0.9))),
     ));
-    let mist_boundary = Box::new(Sphere {
-        material: Box::new(Dielectric::new(1.5)), // arbitrary material
+    let mist_boundary = Arc::new(Sphere {
+        material: Arc::new(Dielectric::new(1.5)), // arbitrary material
         center: Vec3::new(0.0, 0.0, 0.0),
         radius: 5000.0,
     });
-    let mist = Box::new(VariableMedium::new(
+    let mist = Arc::new(VariableMedium::new(
         mist_boundary,
         0.0002,
-        Box::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
+        Arc::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
     ));
 
     // Sphere-cube definition
     let white = Lambertian {
-        albedo: Box::new(ConstantTexture::new(Vec3::new(0.73, 0.73, 0.73))),
+        albedo: Arc::new(ConstantTexture::new(Vec3::new(0.73, 0.73, 0.73))),
     };
     let sphere_cube = (0..1000)
         .map(|_| {
-            Box::new(Sphere {
-                material: Box::new(white.clone()),
+            Arc::new(Sphere {
+                material: Arc::new(white.clone()),
                 center: Vec3::new(
                     165.0 * rng.gen::<f64>(),
                     165.0 * rng.gen::<f64>(),
                     165.0 * rng.gen::<f64>(),
                 ),
                 radius: 10.0,
-            }) as Box<Hitable>
+            }) as Arc<Hitable>
         })
-        .collect::<Vec<Box<Hitable>>>();
-    let sphere_cube = Box::new(Translate::new(
-        Box::new(RotateY::new(
-            Box::new(BvhNode::new(
+        .collect::<Vec<Arc<Hitable>>>();
+    let sphere_cube = Arc::new(Translate::new(
+        Arc::new(RotateY::new(
+            Arc::new(BvhNode::new(
                 &mut HitableList { list: sphere_cube },
                 0.0,
                 1.0,
@@ -419,7 +421,7 @@ fn create_final_scene() -> BvhNode {
         Vec3::new(-100.0, 270.0, 395.0),
     ));
 
-    let list: Vec<Box<Hitable>> = vec![
+    let list: Vec<Arc<Hitable>> = vec![
         ceiling_light,
         fly_ball,
         glass_ball,
@@ -431,7 +433,7 @@ fn create_final_scene() -> BvhNode {
         subsurface_boundary,
         subsurface_volume,
         mist,
-        Box::new(BvhNode::new(&mut HitableList { list: box_list }, 0.0, 1.0)),
+        Arc::new(BvhNode::new(&mut HitableList { list: box_list }, 0.0, 1.0)),
     ];
     BvhNode::new(&mut HitableList { list }, 0.0, 1.0)
 }
@@ -446,52 +448,52 @@ fn wada() -> BvhNode {
     let distance = radius / theta.cos();
     let color = Vec3::new(0.275, 0.612, 0.949);
 
-    let list: Vec<Box<Hitable>> = vec![
-        Box::new(FlipNormals::new(Box::new(Sphere {
+    let list: Vec<Arc<Hitable>> = vec![
+        Arc::new(FlipNormals::new(Arc::new(Sphere {
             radius: 2.0 * 2.0 * radius * 2.0 * (2_f64 / 3_f64).sqrt()
                 - radius * 2.0 * (2_f64 / 3_f64).sqrt() / 3.0,
             center: Vec3::new(50.0, 28.0, 62.0)
                 + Vec3::new(0.0, 0.0, -radius * 2.0 * (2_f64 / 3_f64).sqrt() / 3.0),
-            material: Box::new(Metal::new(
-                Box::new(ConstantTexture::new(Vec3::new(0.5, 0.5, 0.5))),
+            material: Arc::new(Metal::new(
+                Arc::new(ConstantTexture::new(Vec3::new(0.5, 0.5, 0.5))),
                 0.0,
             )),
         }))),
-        Box::new(Sphere {
+        Arc::new(Sphere {
             radius,
             center: Vec3::new(50.0, 28.0, 62.0)
                 + Vec3::new(0.0, 0.0, -1.0) * radius * 2.0 * (2_f64 / 3_f64).sqrt(),
-            material: Box::new(Metal::new(
-                Box::new(ConstantTexture::new(Vec3::new(0.996, 0.996, 0.996))),
+            material: Arc::new(Metal::new(
+                Arc::new(ConstantTexture::new(Vec3::new(0.996, 0.996, 0.996))),
                 0.0,
             )),
         }),
-        Box::new(Sphere {
+        Arc::new(Sphere {
             radius,
             center: Vec3::new(50.0, 28.0, 62.0) + Vec3::new(0.0, -1.0, 0.0) * distance,
-            material: Box::new(Metal::new_emitting(
-                Box::new(ConstantTexture::new(Vec3::new(0.996, 0.996, 0.996))),
-                Box::new(ConstantTexture::new(color * 6e-2)),
+            material: Arc::new(Metal::new_emitting(
+                Arc::new(ConstantTexture::new(Vec3::new(0.996, 0.996, 0.996))),
+                Arc::new(ConstantTexture::new(color * 6e-2)),
                 0.0,
             )),
         }),
-        Box::new(Sphere {
+        Arc::new(Sphere {
             radius,
             center: Vec3::new(50.0, 28.0, 62.0)
                 + Vec3::new(-(theta.cos()), theta.sin(), 0.0) * distance,
-            material: Box::new(Metal::new_emitting(
-                Box::new(ConstantTexture::new(Vec3::new(0.996, 0.996, 0.996))),
-                Box::new(ConstantTexture::new(color * 6e-2)),
+            material: Arc::new(Metal::new_emitting(
+                Arc::new(ConstantTexture::new(Vec3::new(0.996, 0.996, 0.996))),
+                Arc::new(ConstantTexture::new(color * 6e-2)),
                 0.0,
             )),
         }),
-        Box::new(Sphere {
+        Arc::new(Sphere {
             radius,
             center: Vec3::new(50.0, 28.0, 62.0)
                 + Vec3::new(theta.cos(), theta.sin(), 0.0) * distance,
-            material: Box::new(Metal::new_emitting(
-                Box::new(ConstantTexture::new(Vec3::new(0.996, 0.996, 0.996))),
-                Box::new(ConstantTexture::new(color * 6e-2)),
+            material: Arc::new(Metal::new_emitting(
+                Arc::new(ConstantTexture::new(Vec3::new(0.996, 0.996, 0.996))),
+                Arc::new(ConstantTexture::new(color * 6e-2)),
                 0.0,
             )),
         }),
@@ -501,21 +503,36 @@ fn wada() -> BvhNode {
 
 /// Loads all the meshes defined in an OBJ file, and returns them in a
 /// constructed BVH.
-fn load_obj_file(file_path: &Path, mut material: Box<Material>) -> BvhNode {
+fn load_obj_file(file_path: &Path, mut material: Arc<Material>) -> BvhNode {
     match tobj::load_obj(file_path) {
         Ok((models, materials)) => {
-            let mut meshes: Vec<Box<Hitable>> = vec![];
+            let mut meshes: Vec<Arc<Hitable>> = vec![];
+            let mut img_textures = HashMap::new();
             for model in models {
                 let mesh = model.mesh;
                 if mesh.material_id.is_some() {
                     let mtl = &materials[mesh.material_id.unwrap()];
-                    material = Box::new(Lambertian {
-                        albedo: Box::new(ConstantTexture::new(Vec3::new(
-                            mtl.diffuse[0] as f64,
-                            mtl.diffuse[1] as f64,
-                            mtl.diffuse[2] as f64,
-                        ))),
-                    });
+                    // FIXME: This is a hack to prevent trying to map to a transparent image
+                    if !mtl.diffuse_texture.is_empty() && mtl.dissolve_texture.is_empty() {
+                        if !img_textures.contains_key(&mtl.diffuse_texture) {
+                            img_textures.insert(
+                                mtl.diffuse_texture.to_string(),
+                                Arc::new(ImageTexture::new(mtl.diffuse_texture.as_str()))
+                                    as Arc<Texture>,
+                            );
+                        }
+                        material = Arc::new(Lambertian {
+                            albedo: Arc::clone(img_textures.get(&mtl.diffuse_texture).unwrap()),
+                        });
+                    } else {
+                        material = Arc::new(Lambertian {
+                            albedo: Arc::new(ConstantTexture::new(Vec3::new(
+                                mtl.diffuse[0] as f64,
+                                mtl.diffuse[1] as f64,
+                                mtl.diffuse[2] as f64,
+                            ))),
+                        });
+                    }
                 }
                 // all vertices in the mesh
                 let vertices: Vec<Vec3> = mesh
@@ -532,19 +549,28 @@ fn load_obj_file(file_path: &Path, mut material: Box<Material>) -> BvhNode {
                         .map(|i| Vec3::new(i[0] as f64, i[1] as f64, i[2] as f64))
                         .collect();
                 }
+                // all texture coordinates in the mesh
+                let mut texcoords: Vec<(f64, f64)> = vec![];
+                if !mesh.texcoords.is_empty() {
+                    texcoords = mesh
+                        .texcoords
+                        .chunks(2)
+                        .map(|i| (i[0] as f64, i[1] as f64))
+                        .collect();
+                }
                 // Construct faces
-                let faces: Vec<Box<Hitable>> = mesh
+                let faces: Vec<Arc<Hitable>> = mesh
                     .indices
                     .chunks(3)
                     .map(|i| {
-                        let mut face = Box::new(Polygon::new(
+                        let mut face = Polygon::new(
                             vec![
                                 vertices[i[0] as usize],
                                 vertices[i[1] as usize],
                                 vertices[i[2] as usize],
                             ],
-                            material.clone(),
-                        ));
+                            Arc::clone(&material),
+                        );
                         if !normals.is_empty() {
                             face.vertex_normals = Some(vec![
                                 normals[i[0] as usize],
@@ -552,10 +578,17 @@ fn load_obj_file(file_path: &Path, mut material: Box<Material>) -> BvhNode {
                                 normals[i[2] as usize],
                             ]);
                         }
-                        face as Box<Hitable>
+                        if !texcoords.is_empty() {
+                            face.texture_coords = Some(vec![
+                                texcoords[i[0] as usize],
+                                texcoords[i[1] as usize],
+                                texcoords[i[2] as usize],
+                            ]);
+                        }
+                        Arc::new(face) as Arc<Hitable>
                     })
                     .collect();
-                meshes.push(Box::new(PolygonMesh::new(faces)));
+                meshes.push(Arc::new(PolygonMesh::new(faces)));
             }
             BvhNode::new(&mut HitableList { list: meshes }, 0.0, 0.0)
         }
@@ -568,21 +601,22 @@ fn load_obj_file(file_path: &Path, mut material: Box<Material>) -> BvhNode {
 
 fn main() {
     let num_threads: usize = num_cpus::get() - 1;
-    // let num_x = 264;
-    // let num_y = 180;
-    let num_x = 600;
-    let num_y = 600;
+    let num_x = 264 * 2;
+    let num_y = 180 * 2;
+    // let num_x = 600;
+    // let num_y = 600;
     // n and m are the dimensions of the subpixel grid generated for anti-aliasing
-    let (n, m) = (38, 38);
+    // let (n, m) = (38, 38);
+    let (n, m) = (5, 5);
     let range = Uniform::new(0.0, 1.0);
     let mut img_buff = image::ImageBuffer::new(num_x, num_y);
-    let look_from = Vec3::new(0.0, 12.0, 10.0);
-    let look_in = Vec3::new(0.0, -0.05, -1.0);
+    let look_from = Vec3::new(0.0, 75.0, -100.0);
+    let look_in = Vec3::new(0.0, -0.6, 1.0);
     let camera = Camera::new(
         look_from,                   // Camera origin
         look_in,                     // Camera view direction
         Vec3::new(0.0, 1.0, 0.0),    // Camera "up" direction
-        80.0,                        // Vertical FOV
+        40.0,                        // Vertical FOV
         num_x as f64 / num_y as f64, // Aspect ratio
         0.0,                         // Aperture
         10.0,                        // Focus Distance
@@ -592,14 +626,12 @@ fn main() {
 
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
-        ProgressStyle::default_spinner()
-            .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈")
-            .template("{spinner} {msg}: [{elapsed_precise}] "),
+        ProgressStyle::default_spinner().template("{spinner} {msg}: [{elapsed_precise}] "),
     );
     spinner.set_message("Performing Scene Construction");
     spinner.enable_steady_tick(100);
-    // let world = Arc::new(create_debug_scene());
-    let world = Arc::new(create_cornell_box());
+    let world = Arc::new(create_debug_scene());
+    // let world = Arc::new(create_cornell_box());
     spinner.finish_with_message("Scene Construction Completed");
 
     let progress_bar = ProgressBar::new((num_x * num_y) as u64);

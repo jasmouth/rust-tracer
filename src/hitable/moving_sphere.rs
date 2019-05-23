@@ -5,6 +5,7 @@ use hitable::hitable::Hitable;
 use hitable::utils as hitable_utils;
 use material::material::Material;
 use ray::Ray;
+use std::sync::Arc;
 use vec3::{dot, Vec3};
 
 /// Represents a sphere that can move from one point to another
@@ -16,7 +17,7 @@ pub struct MovingSphere {
     pub end_center: Vec3,
     pub start_time: f64,
     pub end_time: f64,
-    pub material: Box<Material>,
+    pub material: Arc<Material>,
 }
 
 impl MovingSphere {
@@ -41,7 +42,7 @@ impl Hitable for MovingSphere {
                 rec.t = temp;
                 rec.hit_point = ray.point_at_param(rec.t);
                 rec.normal = (rec.hit_point - self.get_center(ray.time)) / self.radius;
-                rec.material = Some(self.material.clone());
+                rec.material = Some(Arc::clone(&self.material));
                 let (u, v) = hitable_utils::get_sphere_uv(&rec.normal);
                 rec.u = u;
                 rec.v = v;
@@ -52,7 +53,7 @@ impl Hitable for MovingSphere {
                 rec.t = temp;
                 rec.hit_point = ray.point_at_param(rec.t);
                 rec.normal = (rec.hit_point - self.get_center(ray.time)) / self.radius;
-                rec.material = Some(self.material.clone());
+                rec.material = Some(Arc::clone(&self.material));
                 let (u, v) = hitable_utils::get_sphere_uv(&rec.normal);
                 rec.u = u;
                 rec.v = v;
@@ -74,9 +75,5 @@ impl Hitable for MovingSphere {
             self.get_center(end_time) + self.radius,
         );
         Some(utils::calc_surrounding_box(&start_box, &end_box))
-    }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
     }
 }

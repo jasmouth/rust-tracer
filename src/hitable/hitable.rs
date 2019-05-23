@@ -25,11 +25,4 @@ pub trait Hitable: Send + Sync {
     /// - An Optional containing the computed bounding box, or None if no box
     /// can be computed.
     fn bounding_box(&self, start_time: f64, end_time: f64) -> Option<AxisAlignedBoundingBox>;
-    fn box_clone(&self) -> Box<Hitable>;
-}
-
-impl Clone for Box<Hitable> {
-    fn clone(&self) -> Box<Hitable> {
-        self.box_clone()
-    }
 }

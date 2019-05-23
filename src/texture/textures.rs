@@ -1,6 +1,7 @@
 extern crate image;
 
 use image::GenericImageView;
+use std::sync::Arc;
 use texture::perlin::Perlin;
 use texture::texture::Texture;
 use vec3::Vec3;
@@ -21,22 +22,18 @@ impl Texture for ConstantTexture {
     fn value(&self, _u: f64, _v: f64, _hit_point: &Vec3) -> Vec3 {
         self.color
     }
-
-    fn box_clone(&self) -> Box<Texture> {
-        Box::new((*self).clone())
-    }
 }
 
 /// A texture representing a checkerboard pattern,
 /// alternating between two textures `even` and `odd`
 #[derive(Clone)]
 pub struct CheckerTexture {
-    even: Box<Texture>,
-    odd: Box<Texture>,
+    even: Arc<Texture>,
+    odd: Arc<Texture>,
 }
 
 impl CheckerTexture {
-    pub fn new(even: Box<Texture>, odd: Box<Texture>) -> Self {
+    pub fn new(even: Arc<Texture>, odd: Arc<Texture>) -> Self {
         CheckerTexture { even, odd }
     }
 }
@@ -51,10 +48,6 @@ impl Texture for CheckerTexture {
         } else {
             self.even.value(u, v, hit_point)
         };
-    }
-
-    fn box_clone(&self) -> Box<Texture> {
-        Box::new((*self).clone())
     }
 }
 
@@ -94,10 +87,6 @@ impl Texture for NoiseTexture {
                     .abs())
         .sin();
         Vec3::new(1.0, 1.0, 1.0) * 0.5 * (1.0 + sine)
-    }
-
-    fn box_clone(&self) -> Box<Texture> {
-        Box::new((*self).clone())
     }
 }
 
@@ -140,9 +129,5 @@ impl Texture for ImageTexture {
         let b = self.data[idx + 2] as f64 / 255.0;
 
         Vec3::new(r, g, b)
-    }
-
-    fn box_clone(&self) -> Box<Texture> {
-        Box::new((*self).clone())
     }
 }

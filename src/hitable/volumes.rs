@@ -7,6 +7,7 @@ use rand::Rng;
 use ray::Ray;
 use std::f64::MAX as FLOAT_MAX;
 use std::f64::MIN as FLOAT_MIN;
+use std::sync::Arc;
 use texture::perlin::Perlin;
 use texture::texture::Texture;
 use vec3::Vec3;
@@ -15,18 +16,18 @@ use vec3::Vec3;
 #[derive(Clone)]
 pub struct ConstantMedium {
     /// The boundary within which the medium is contained
-    boundary: Box<Hitable>,
+    boundary: Arc<Hitable>,
     /// The density of the medium
     density: f64,
     /// Describes the way light is scattered at any given point
     /// within the medium. For our purposes, this description is
     /// given as a Material (which inherently scatters light)
-    phase_func: Box<Material>,
+    phase_func: Arc<Material>,
 }
 
 impl ConstantMedium {
-    pub fn new(boundary: Box<Hitable>, density: f64, texture: Box<Texture>) -> Self {
-        let phase_func = Box::new(Isotropic { albedo: texture });
+    pub fn new(boundary: Arc<Hitable>, density: f64, texture: Arc<Texture>) -> Self {
+        let phase_func = Arc::new(Isotropic { albedo: texture });
         ConstantMedium {
             boundary,
             density,
@@ -66,7 +67,7 @@ impl Hitable for ConstantMedium {
                     rec.t = rec_1.t + (hit_distance / ray_length);
                     rec.hit_point = ray.point_at_param(rec.t);
                     rec.normal = Vec3::new(1.0, 0.0, 0.0); // An arbitrary direction
-                    rec.material = Some(self.phase_func.clone());
+                    rec.material = Some(Arc::clone(&self.phase_func));
                     return true;
                 }
             }
@@ -78,17 +79,13 @@ impl Hitable for ConstantMedium {
     fn bounding_box(&self, start_time: f64, end_time: f64) -> Option<AxisAlignedBoundingBox> {
         self.boundary.bounding_box(start_time, end_time)
     }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
-    }
 }
 
 /// Represents a participating medium with a variable density
 #[derive(Clone)]
 pub struct VariableMedium {
     /// The boundary within which the medium is contained
-    boundary: Box<Hitable>,
+    boundary: Arc<Hitable>,
     /// The maximum density of the medium
     max_density: f64,
     /// A noise function (which maps a Vec3 to a real number)
@@ -97,12 +94,12 @@ pub struct VariableMedium {
     /// Describes the way light is scattered at any given point
     /// within the medium. For our purposes, this description is
     /// given as a Material (which inherently scatters light)
-    phase_func: Box<Material>,
+    phase_func: Arc<Material>,
 }
 
 impl VariableMedium {
-    pub fn new(boundary: Box<Hitable>, max_density: f64, texture: Box<Texture>) -> Self {
-        let phase_func = Box::new(Isotropic { albedo: texture });
+    pub fn new(boundary: Arc<Hitable>, max_density: f64, texture: Arc<Texture>) -> Self {
+        let phase_func = Arc::new(Isotropic { albedo: texture });
         VariableMedium {
             boundary,
             max_density,
@@ -153,7 +150,7 @@ impl Hitable for VariableMedium {
                     rec.t = rec_1.t + (hit_distance / ray_length);
                     rec.hit_point = ray.point_at_param(rec.t);
                     rec.normal = Vec3::new(1.0, 0.0, 0.0); // An arbitrary direction
-                    rec.material = Some(self.phase_func.clone());
+                    rec.material = Some(Arc::clone(&self.phase_func));
                     return true;
                 }
             }
@@ -164,9 +161,5 @@ impl Hitable for VariableMedium {
 
     fn bounding_box(&self, start_time: f64, end_time: f64) -> Option<AxisAlignedBoundingBox> {
         self.boundary.bounding_box(start_time, end_time)
-    }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
     }
 }

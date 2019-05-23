@@ -4,6 +4,7 @@ use hitable::hitable::Hitable;
 use hitable::utils;
 use material::material::Material;
 use ray::Ray;
+use std::sync::Arc;
 use vec3::{dot, Vec3};
 
 /// Represents a stationary sphere
@@ -11,7 +12,7 @@ use vec3::{dot, Vec3};
 pub struct Sphere {
     pub center: Vec3,
     pub radius: f64,
-    pub material: Box<Material>,
+    pub material: Arc<Material>,
 }
 
 impl Hitable for Sphere {
@@ -27,7 +28,7 @@ impl Hitable for Sphere {
                 rec.t = temp;
                 rec.hit_point = ray.point_at_param(rec.t);
                 rec.normal = (rec.hit_point - self.center) / self.radius;
-                rec.material = Some(self.material.clone());
+                rec.material = Some(Arc::clone(&self.material));
                 let (u, v) = utils::get_sphere_uv(&rec.normal);
                 rec.u = u;
                 rec.v = v;
@@ -38,7 +39,7 @@ impl Hitable for Sphere {
                 rec.t = temp;
                 rec.hit_point = ray.point_at_param(rec.t);
                 rec.normal = (rec.hit_point - self.center) / self.radius;
-                rec.material = Some(self.material.clone());
+                rec.material = Some(Arc::clone(&self.material));
                 let (u, v) = utils::get_sphere_uv(&rec.normal);
                 rec.u = u;
                 rec.v = v;
@@ -55,9 +56,5 @@ impl Hitable for Sphere {
             self.center - self.radius,
             self.center + self.radius,
         ))
-    }
-
-    fn box_clone(&self) -> Box<Hitable> {
-        Box::new((*self).clone())
     }
 }

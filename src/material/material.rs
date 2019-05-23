@@ -21,11 +21,4 @@ pub trait Material: Send + Sync {
         #![allow(unused_variables)]
         Vec3::new(0.0, 0.0, 0.0)
     }
-    fn box_clone(&self) -> Box<Material>;
-}
-
-impl Clone for Box<Material> {
-    fn clone(&self) -> Box<Material> {
-        self.box_clone()
-    }
 }
