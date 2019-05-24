@@ -200,8 +200,10 @@ impl Material for Isotropic {
 pub struct Glossy {
     pub albedo: Arc<Texture>,
     pub specular_albedo: Arc<Texture>,
+    pub emittance_albedo: Arc<Texture>,
     /// The glossiness field dictates how sharp the specular highlights appear.
     pub glossiness: f64,
+    pub refractive_index: f64,
 }
 
 impl Glossy {
@@ -209,11 +211,13 @@ impl Glossy {
         Glossy {
             albedo,
             specular_albedo: Arc::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
+            emittance_albedo: Arc::new(ConstantTexture::new(Vec3::new(0.0, 0.0, 0.0))),
             glossiness: if gloss <= 1.0 && gloss >= 0.0 {
                 1.0 - gloss
             } else {
                 0.0
             },
+            refractive_index: 1.45,
         }
     }
 }
@@ -224,8 +228,8 @@ impl Material for Glossy {
         let scattered_ray;
         if Uniform::new(0.0, 1.0).sample(&mut rand::thread_rng())
             <= utils::schlick_approx(
-                -dot(&input_ray.direction, &hit_record.normal) / input_ray.direction.length(),
-                1.75,
+                -dot(&unit_vector(input_ray.direction), &hit_record.normal),
+                self.refractive_index,
             )
         {
             // Specular Ray
@@ -257,5 +261,9 @@ impl Material for Glossy {
             // the ray has been scattered under the object's surface.
             dot(&scattered_ray.direction, &hit_record.normal) > 0.0,
         )
+    }
+
+    fn emit(&self, u: f64, v: f64, hit_point: &Vec3) -> Vec3 {
+        self.emittance_albedo.value(u, v, hit_point)
     }
 }

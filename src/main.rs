@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::f64::MAX as FLOAT_MAX;
 use std::fs::File;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
 
@@ -35,13 +36,13 @@ use hitable::sphere::Sphere;
 use hitable::transformations::{RotateY, Translate};
 use hitable::volumes::{ConstantMedium, VariableMedium};
 use material::material::Material;
-use material::materials::{Dielectric, DiffuseLight, Lambertian, Metal};
+use material::materials::{Dielectric, DiffuseLight, Glossy, Lambertian, Metal};
 use ray::Ray;
 use texture::texture::Texture;
 use texture::textures::{CheckerTexture, ConstantTexture, ImageTexture, NoiseTexture};
 use vec3::Vec3;
 
-static MAX_DEPTH: i32 = 5;
+static MAX_DEPTH: i32 = 50;
 
 /// Calculates a final color value for a given Ray
 fn get_color(ray: &Ray, world: &BvhNode, depth: i32) -> Vec3 {
@@ -247,7 +248,7 @@ fn create_cornell_box() -> BvhNode {
         z_1: 10.0,
         k: 20.0,
     });
-    let ceiling_light = Arc::new(XZRect {
+    let _ceiling_light = Arc::new(XZRect {
         material: Arc::new(light.clone()),
         x_0: -7.5,
         x_1: 7.5,
@@ -256,7 +257,7 @@ fn create_cornell_box() -> BvhNode {
         k: 20.0,
     });
 
-    let pedestal = Arc::new(AxisAlignedBlock::new(
+    let _pedestal = Arc::new(AxisAlignedBlock::new(
         Vec3::new(-2.0, 0.0, -3.0),
         Vec3::new(2.0, 7.95, 1.0),
         Arc::new(Lambertian {
@@ -264,9 +265,13 @@ fn create_cornell_box() -> BvhNode {
         }),
     ));
 
-    let teapot = load_obj_file(
+    let _teapot = load_obj_file(
         &Path::new("object-files/teapot.obj"),
-        Arc::new(Dielectric::new(1.54)),
+        Arc::new(Dielectric::new(1.0)),
+    );
+    let lamp = load_obj_file(
+        &Path::new("object-files/luxo/luxo_obj.obj"),
+        Arc::new(Dielectric::new(1.0)),
     );
     let list: Vec<Arc<Hitable>> = vec![
         left_wall,
@@ -275,9 +280,10 @@ fn create_cornell_box() -> BvhNode {
         front_wall,
         floor,
         Arc::new(FlipNormals::new(ceiling)),
-        ceiling_light,
-        Arc::new(Translate::new(Arc::new(teapot), Vec3::new(0.0, 8.0, -1.5))),
-        pedestal,
+        // _ceiling_light,
+        Arc::new(RotateY::new(Arc::new(lamp), -70.0)),
+        // Arc::new(Translate::new(Arc::new(_teapot), Vec3::new(0.0, 8.0, -1.5))),
+        // _pedestal,
     ];
 
     BvhNode::new(&mut HitableList { list }, 0.0, 0.0)
@@ -285,22 +291,35 @@ fn create_cornell_box() -> BvhNode {
 
 fn create_debug_scene() -> BvhNode {
     #![allow(dead_code)]
-    let light = Arc::new(Sphere {
-        center: Vec3::new(-1000.0, 1000.0, 100.0),
-        radius: 1_000.0,
-        material: Arc::new(DiffuseLight::new(Arc::new(ConstantTexture::new(
-            Vec3::new(3.0, 3.0, 3.0),
-        )))),
+    let lamp = Arc::new(load_obj_file(
+        &Path::new("object-files/luxo/luxo_obj.obj"),
+        Arc::new(Dielectric::new(1.0)),
+    ));
+    let mut varnish = Glossy::new(Arc::new(ImageTexture::new("textures/wood.jpg")), 1.0);
+    varnish.refractive_index = 1.66;
+    let table_top = Arc::new(XZRect {
+        material: Arc::new(varnish),
+        x_0: -40.0,
+        x_1: 40.0,
+        z_0: -40.0,
+        z_1: 40.0,
+        k: 0.0,
     });
-
-    let house = load_obj_file(
-        &Path::new("object-files/house/house.obj"),
-        Arc::new(Lambertian {
-            albedo: Arc::new(ConstantTexture::new(Vec3::new(0.6, 0.4, 0.7528))),
+    let mist = Arc::new(ConstantMedium::new(
+        Arc::new(Sphere {
+            center: Vec3::new(0.0, 0.0, 0.0),
+            radius: 200.0,
+            material: Arc::new(Dielectric::new(1.0)),
         }),
-    );
+        0.005,
+        Arc::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
+    ));
 
-    let list: Vec<Arc<Hitable>> = vec![light, Arc::new(RotateY::new(Arc::new(house), 15.0))];
+    let list: Vec<Arc<Hitable>> = vec![
+        Arc::new(RotateY::new(lamp, -100.0)),
+        table_top,
+        /* mist */
+    ];
     BvhNode::new(&mut HitableList { list }, 0.0, 1.0)
 }
 
@@ -525,12 +544,41 @@ fn load_obj_file(file_path: &Path, mut material: Arc<Material>) -> BvhNode {
                             albedo: Arc::clone(img_textures.get(&mtl.diffuse_texture).unwrap()),
                         });
                     } else {
-                        material = Arc::new(Lambertian {
+                        // Refractive Index
+                        let ior = if mtl.optical_density != 1.0 {
+                            mtl.optical_density as f64
+                        } else if mtl.shininess != 0.0 {
+                            1.45
+                        } else {
+                            1.0
+                        };
+                        // Emittance
+                        let emittance_color = if mtl.unknown_param.contains_key("Ke") {
+                            Vec3::from_vec(
+                                mtl.unknown_param
+                                    .get("Ke")
+                                    .unwrap()
+                                    .split_whitespace()
+                                    .map(|s| f64::from_str(s).unwrap())
+                                    .collect(),
+                            )
+                        } else {
+                            Vec3::new(0.0, 0.0, 0.0)
+                        };
+                        material = Arc::new(Glossy {
                             albedo: Arc::new(ConstantTexture::new(Vec3::new(
                                 mtl.diffuse[0] as f64,
                                 mtl.diffuse[1] as f64,
                                 mtl.diffuse[2] as f64,
                             ))),
+                            specular_albedo: Arc::new(ConstantTexture::new(Vec3::new(
+                                mtl.specular[0] as f64,
+                                mtl.specular[1] as f64,
+                                mtl.specular[2] as f64,
+                            ))),
+                            emittance_albedo: Arc::new(ConstantTexture::new(emittance_color)),
+                            glossiness: (mtl.shininess / 1_000.0) as f64,
+                            refractive_index: ior,
                         });
                     }
                 }
@@ -603,15 +651,15 @@ fn main() {
     let num_threads: usize = num_cpus::get() - 1;
     let num_x = 264 * 2;
     let num_y = 180 * 2;
-    // let num_x = 600;
-    // let num_y = 600;
+    // let num_x = 300;
+    // let num_y = 300;
     // n and m are the dimensions of the subpixel grid generated for anti-aliasing
     // let (n, m) = (38, 38);
-    let (n, m) = (5, 5);
+    let (n, m) = (10, 10);
     let range = Uniform::new(0.0, 1.0);
     let mut img_buff = image::ImageBuffer::new(num_x, num_y);
-    let look_from = Vec3::new(0.0, 75.0, -100.0);
-    let look_in = Vec3::new(0.0, -0.6, 1.0);
+    let look_from = Vec3::new(0.0, 2.0, 20.0);
+    let look_in = Vec3::new(0.0, 0.125, -1.0);
     let camera = Camera::new(
         look_from,                   // Camera origin
         look_in,                     // Camera view direction
