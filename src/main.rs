@@ -42,7 +42,7 @@ use texture::texture::Texture;
 use texture::textures::{CheckerTexture, ConstantTexture, ImageTexture, NoiseTexture};
 use vec3::Vec3;
 
-static MAX_DEPTH: i32 = 50;
+static MAX_DEPTH: i32 = 10;
 
 /// Calculates a final color value for a given Ray
 fn get_color(ray: &Ray, world: &BvhNode, depth: i32) -> Vec3 {
@@ -68,6 +68,7 @@ fn get_color(ray: &Ray, world: &BvhNode, depth: i32) -> Vec3 {
             return emitted_light;
         }
     } else {
+        // return Vec3::new(1.0, 1.0, 1.0);
         return Vec3::new(0.0, 0.0, 0.0);
     }
 }
@@ -291,34 +292,96 @@ fn create_cornell_box() -> BvhNode {
 
 fn create_debug_scene() -> BvhNode {
     #![allow(dead_code)]
-    let lamp = Arc::new(load_obj_file(
-        &Path::new("object-files/luxo/luxo_obj.obj"),
-        Arc::new(Dielectric::new(1.0)),
+    // Colors
+    let white = Arc::new(Lambertian {
+        albedo: Arc::new(ConstantTexture::new(Vec3::new(0.73, 0.73, 0.73))),
+    }) as Arc<Material>;
+
+    // Walls
+    let back_wall = Arc::new(XYRect {
+        material: Arc::clone(&white),
+        x_0: -20.0,
+        x_1: 20.0,
+        y_0: 0.0,
+        y_1: 40.0,
+        k: -20.0,
+    }) as Arc<Hitable>;
+    let front_wall = Arc::new(Translate::new(
+        Arc::new(FlipNormals::new(Arc::clone(&back_wall))),
+        Vec3::new(00.0, 0.0, 40.0),
     ));
+    let left_wall = Arc::new(YZRect {
+        material: Arc::clone(&white),
+        y_0: 0.0,
+        y_1: 40.0,
+        z_0: -20.0,
+        z_1: 20.0,
+        k: -20.0,
+    }) as Arc<Hitable>;
+    let right_wall = Arc::new(Translate::new(
+        Arc::new(FlipNormals::new(Arc::clone(&left_wall))),
+        Vec3::new(40.0, 0.0, 0.0),
+    ));
+    let ceiling = Arc::new(FlipNormals::new(Arc::new(XZRect {
+        material: Arc::clone(&white),
+        x_0: -20.0,
+        x_1: 20.0,
+        z_0: -20.0,
+        z_1: 20.0,
+        k: 40.0,
+    })));
     let mut varnish = Glossy::new(Arc::new(ImageTexture::new("textures/wood.jpg")), 1.0);
     varnish.refractive_index = 1.66;
     let table_top = Arc::new(XZRect {
         material: Arc::new(varnish),
-        x_0: -40.0,
-        x_1: 40.0,
-        z_0: -40.0,
-        z_1: 40.0,
+        x_0: -20.0,
+        x_1: 20.0,
+        z_0: -20.0,
+        z_1: 20.0,
         k: 0.0,
     });
+
+    // Objects
+    let lamp = Arc::new(load_obj_file(
+        &Path::new("object-files/luxo/luxo_obj.obj"),
+        Arc::new(Dielectric::new(1.0)),
+    ));
+    let glass_ball = Arc::new(Sphere {
+        center: Vec3::new(-2.5, 6.25, 0.75),
+        radius: 1.5,
+        material: Arc::new(Dielectric::new(1.525)),
+    });
+    let toy_ball = Arc::new(Sphere {
+        center: Vec3::new(-2.0, 2.0, 0.75),
+        radius: 2.0,
+        material: Arc::new(Glossy::new(
+            Arc::new(ImageTexture::new("textures/pixar_ball_copy.jpg")),
+            0.25,
+        )),
+    });
+
+    // Volumes
     let mist = Arc::new(ConstantMedium::new(
         Arc::new(Sphere {
             center: Vec3::new(0.0, 0.0, 0.0),
             radius: 200.0,
             material: Arc::new(Dielectric::new(1.0)),
         }),
-        0.005,
+        0.0025,
         Arc::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
     ));
 
     let list: Vec<Arc<Hitable>> = vec![
-        Arc::new(RotateY::new(lamp, -100.0)),
+        Arc::new(RotateY::new(lamp, -110.0)),
         table_top,
-        /* mist */
+        glass_ball,
+        left_wall,
+        right_wall,
+        back_wall,
+        front_wall,
+        ceiling,
+        // mist,
+        toy_ball,
     ];
     BvhNode::new(&mut HitableList { list }, 0.0, 1.0)
 }
@@ -654,11 +717,11 @@ fn main() {
     // let num_x = 300;
     // let num_y = 300;
     // n and m are the dimensions of the subpixel grid generated for anti-aliasing
-    // let (n, m) = (38, 38);
-    let (n, m) = (10, 10);
+    // let (n, m) = (2, 2);
+    let (n, m) = (40, 40);
     let range = Uniform::new(0.0, 1.0);
     let mut img_buff = image::ImageBuffer::new(num_x, num_y);
-    let look_from = Vec3::new(0.0, 2.0, 20.0);
+    let look_from = Vec3::new(-3.0, 2.0, 20.0);
     let look_in = Vec3::new(0.0, 0.125, -1.0);
     let camera = Camera::new(
         look_from,                   // Camera origin
