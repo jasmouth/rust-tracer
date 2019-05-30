@@ -42,7 +42,7 @@ use texture::texture::Texture;
 use texture::textures::{CheckerTexture, ConstantTexture, ImageTexture, NoiseTexture};
 use vec3::Vec3;
 
-static MAX_DEPTH: i32 = 10;
+static MAX_DEPTH: i32 = 50;
 
 /// Calculates a final color value for a given Ray
 fn get_color(ray: &Ray, world: &BvhNode, depth: i32) -> Vec3 {
@@ -364,10 +364,10 @@ fn create_debug_scene() -> BvhNode {
     let mist = Arc::new(ConstantMedium::new(
         Arc::new(Sphere {
             center: Vec3::new(0.0, 0.0, 0.0),
-            radius: 200.0,
+            radius: 2000.0,
             material: Arc::new(Dielectric::new(1.0)),
         }),
-        0.0025,
+        0.005,
         Arc::new(ConstantTexture::new(Vec3::new(1.0, 1.0, 1.0))),
     ));
 
@@ -375,13 +375,13 @@ fn create_debug_scene() -> BvhNode {
         Arc::new(RotateY::new(lamp, -110.0)),
         table_top,
         glass_ball,
-        left_wall,
-        right_wall,
-        back_wall,
-        front_wall,
-        ceiling,
-        // mist,
+        mist,
         toy_ball,
+        // left_wall,
+        // right_wall,
+        // back_wall,
+        // front_wall,
+        // ceiling,
     ];
     BvhNode::new(&mut HitableList { list }, 0.0, 1.0)
 }
@@ -718,7 +718,7 @@ fn main() {
     // let num_y = 300;
     // n and m are the dimensions of the subpixel grid generated for anti-aliasing
     // let (n, m) = (2, 2);
-    let (n, m) = (40, 40);
+    let (n, m) = (48, 48);
     let range = Uniform::new(0.0, 1.0);
     let mut img_buff = image::ImageBuffer::new(num_x, num_y);
     let look_from = Vec3::new(-3.0, 2.0, 20.0);
